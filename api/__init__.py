@@ -1,0 +1,1 @@
+"""NagarDrishti shared FastAPI backend."""

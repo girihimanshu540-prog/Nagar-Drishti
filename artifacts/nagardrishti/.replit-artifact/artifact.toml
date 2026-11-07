@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "NagarDrishti"
+description = "Road hazard reporting and repair evidence verification for citizens, contractors, Junior Engineers and municipal commissioners."
+version = "1.0.0"
+id = "artifacts/nagardrishti"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18715
+
+[services.development]
+run = "pnpm --filter @workspace/nagardrishti run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nagardrishti", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/nagardrishti/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18715"
+BASE_PATH = "/"

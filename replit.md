@@ -1,45 +1,36 @@
-# [Project name]
+# NagarDrishti
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Road-hazard reporting and accountable repair verification: **no closure without verified evidence**.
 
-## Run & Operate
+## Run and operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Managed frontend workflow: `artifacts/nagardrishti: web`
+- Managed API workflow: `artifacts/api-server: API Server`
+- `uv sync --frozen` — install locked Python dependencies
+- `uv run python seed.py --init` — development-only, explicit idempotent schema/seed
+- `uv run python -m pytest tests/test_pipeline.py tests/test_api.py -q` — policy tests
+- `pnpm run typecheck` — all TypeScript packages
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate client contract
+- Interactive docs `/docs` and `/api/docs`; API `/api`; health `/health`
 
-## Stack
+## Stack and source of truth
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python FastAPI + SQLAlchemy + PostgreSQL; Python entrypoint `api/run.py`
+- Managed API artifact's Node launcher starts the Python service; Express starter files are unused.
+- React + Vite + Tailwind web app `artifacts/nagardrishti`
+- SQLAlchemy model source: `api/models.py`. Do not run the unused Drizzle push command:
+  the SQLAlchemy-managed tables are not represented in the starter Drizzle schema.
+- Contract: `lib/api-spec/openapi.yaml`, runtime OpenAPI from FastAPI at `/api/openapi.json`
+- Defaults and verification gates: `api/config.py`; commissioner configuration persists in DB
+- Real evidence bytes live in App Storage, never database blobs or local app filesystem.
+- Synthetic example images are labeled demo-only. Never use them to claim live AI verification.
 
-## Where things live
+## Product scope and operating constraints
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Selected artifact for this build is web. The shared API is implemented; native Expo app is not.
+- The user explicitly requests custom bcrypt/JWT auth, not Replit Auth.
+- Seeded demo staff accounts are intentionally public; never use them in real municipal operations.
+- Uncertain evidence must always require JE review; never relax this invariant for demos.
+- The live capture UI excludes gallery pickers; metadata is not cryptographic capture attestation.
+- Never run schema creation or seed at application startup or in production build hooks.
+- See `README.md` for setup, demo credentials, verification limitations and acceptance evidence.

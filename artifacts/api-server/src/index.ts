@@ -1,25 +1,19 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+// Keep the managed API artifact entry point while running the requested FastAPI stack.
+import { spawn } from "node:child_process";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
-  logger.info({ port }, "Server listening");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const child = spawn("uv", ["run", "--frozen", "--directory", root, "python", "-m", "api.run"], {
+  cwd: root,
+  env: process.env,
+  stdio: "inherit",
 });
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => child.kill(signal));
+}
+child.on("error", (error) => {
+  process.stderr.write(`FastAPI could not start: ${error.message}\n`);
+  process.exit(1);
+});
+child.on("exit", (code) => process.exit(code ?? 0));

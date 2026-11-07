@@ -1,36 +1,461 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: NagarDrishti evidence-based road repair API
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginInput" }
+      responses:
+        "200":
+          description: Logged in, secure session cookie set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResult" }
+  /auth/register:
+    post:
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistrationInput" }
+      responses:
+        "200":
+          description: Registered citizen
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResult" }
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: Signed-in user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+  /wards:
+    get:
+      operationId: getWards
+      responses:
+        "200":
+          description: Wards
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/Ward" }
+  /tickets:
+    get:
+      operationId: getTickets
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: ward, in: query, schema: { type: integer } }
+        - { name: severity, in: query, schema: { type: integer } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string } }
+        - { name: mine, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Public-safe tickets; mine requires authentication
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Ticket" }
+  /tickets/{id}:
+    get:
+      operationId: getTicket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Full ticket for authorized users
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketDetail" }
+  /public/tickets/{id}:
+    get:
+      operationId: getPublicTicket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Public-safe detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketDetail" }
+  /tickets/{id}/assign:
+    post:
+      operationId: assignTicket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignmentInput" }
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketDetail" }
+  /tickets/{id}/review:
+    post:
+      operationId: reviewTicket
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: Reviewed and audited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketDetail" }
+  /reports:
+    post:
+      operationId: submitReport
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/CaptureInput" }
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaptureResult" }
+  /tickets/{id}/repair:
+    post:
+      operationId: submitRepair
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/CaptureInput" }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaptureResult" }
+  /reports/mine:
+    get:
+      operationId: getMyReports
+      responses:
+        "200":
+          description: My reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Report" }
+  /stats:
+    get:
+      operationId: getStats
+      parameters:
+        - { name: ward, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Computed municipal statistics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stats" }
+  /activity:
+    get:
+      operationId: getActivity
+      responses:
+        "200":
+          description: Public-safe recent audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TicketEvent" }
+  /contractors/scorecard:
+    get:
+      operationId: getContractors
+      responses:
+        "200":
+          description: Contractor accountability scorecard
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Contractor" }
+  /config:
+    get:
+      operationId: getConfig
+      responses:
+        "200":
+          description: Verification thresholds and configured traffic index
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Configuration" }
+    put:
+      operationId: updateConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Configuration" }
+      responses:
+        "200":
+          description: Saved configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Configuration" }
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+    RegistrationInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        password: { type: string }
+    User:
+      type: object
+      required: [id, name, email, role, ward_id]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [citizen, contractor, je, commissioner] }
+        ward_id: { type: integer }
+    AuthResult:
+      type: object
+      required: [user, access_token]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        access_token: { type: string }
+    Ward:
+      type: object
+      required: [id, name, center_lat, center_lng]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        center_lat: { type: number }
+        center_lng: { type: number }
+    Ticket:
+      type: object
+      required: [id, title, location, lat, lng, ward_id, ward_name, status, severity, traffic_density, priority_score, report_count, created_at, before_image_url, detector_engine, is_demo]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        location: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        ward_id: { type: integer }
+        ward_name: { type: string }
+        status: { type: string, enum: [OPEN, ASSIGNED, REPAIR_SUBMITTED, NEEDS_JE_REVIEW, VERIFIED_CLOSED, REOPENED] }
+        severity: { type: integer }
+        traffic_density: { type: number }
+        priority_score: { type: number }
+        report_count: { type: integer }
+        assigned_contractor_id: { type: [integer, "null"] }
+        contractor_name: { type: [string, "null"] }
+        before_image_url: { type: string }
+        closed_at: { type: [string, "null"] }
+        created_at: { type: string }
+        detector_engine: { type: string }
+        is_demo: { type: boolean }
+    Report:
+      type: object
+      required: [id, ticket_id, image_url, lat, lng, captured_at, capture_source, detector_engine, validation_status, reason, severity]
+      properties:
+        id: { type: integer }
+        ticket_id: { type: [string, "null"] }
+        image_url: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        gps_accuracy_m: { type: number }
+        captured_at: { type: string }
+        capture_source: { type: string }
+        detector_engine: { type: string }
+        validation_status: { type: string }
+        reason: { type: string }
+        severity: { type: integer }
+        bbox:
+          type: array
+          items: { type: number }
+    Repair:
+      type: object
+      required: [id, ticket_id, image_url, captured_at, decision, vision_verdict, vision_reason]
+      properties:
+        id: { type: integer }
+        ticket_id: { type: string }
+        image_url: { type: string }
+        captured_at: { type: string }
+        ssim_global: { type: [number, "null"] }
+        ssim_defect_region: { type: [number, "null"] }
+        same_location_score: { type: [number, "null"] }
+        vision_verdict: { type: string }
+        vision_reason: { type: string }
+        decision: { type: string }
+        je_decision: { type: [string, "null"] }
+        je_notes: { type: [string, "null"] }
+    TicketEvent:
+      type: object
+      required: [id, ticket_id, event_type, description, at, actor_name]
+      properties:
+        id: { type: integer }
+        ticket_id: { type: string }
+        event_type: { type: string }
+        description: { type: string }
+        actor_name: { type: string }
+        at: { type: string }
+    TicketDetail:
+      allOf:
+        - { $ref: "#/components/schemas/Ticket" }
+        - type: object
+          required: [reports, repairs, events]
+          properties:
+            reports:
+              type: array
+              items: { $ref: "#/components/schemas/Report" }
+            repairs:
+              type: array
+              items: { $ref: "#/components/schemas/Repair" }
+            events:
+              type: array
+              items: { $ref: "#/components/schemas/TicketEvent" }
+    AssignmentInput:
+      type: object
+      required: [contractor_id]
+      properties:
+        contractor_id: { type: integer }
+    ReviewInput:
+      type: object
+      required: [decision, notes]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+        notes: { type: string, minLength: 10 }
+    CaptureInput:
+      type: object
+      required: [image, lat, lng, accuracy, captured_at, capture_source]
+      properties:
+        image: { type: string, format: binary }
+        lat: { type: number }
+        lng: { type: number }
+        accuracy: { type: number }
+        captured_at: { type: string }
+        capture_source: { type: string }
+    CaptureResult:
+      type: object
+      required: [accepted, reason, decision, detector_engine]
+      properties:
+        accepted: { type: boolean }
+        reason: { type: string }
+        decision: { type: string }
+        severity: { type: integer }
+        detector_engine: { type: string }
+        ticket: { $ref: "#/components/schemas/Ticket" }
+    WardStats:
+      type: object
+      required: [ward_id, name, total, open, closed]
+      properties:
+        ward_id: { type: integer }
+        name: { type: string }
+        total: { type: integer }
+        open: { type: integer }
+        closed: { type: integer }
+    Stats:
+      type: object
+      required: [total, open, verified_closures, je_queue, false_closures_prevented, avg_time_to_close_hours, reports_total, per_ward, status_counts]
+      properties:
+        total: { type: integer }
+        open: { type: integer }
+        verified_closures: { type: integer }
+        je_queue: { type: integer }
+        false_closures_prevented: { type: integer }
+        avg_time_to_close_hours: { type: number }
+        reports_total: { type: integer }
+        per_ward:
+          type: array
+          items: { $ref: "#/components/schemas/WardStats" }
+        status_counts:
+          type: object
+          additionalProperties: { type: integer }
+    Contractor:
+      type: object
+      required: [id, name, company, assigned, verified, rejected, pending_review, verification_rate, avg_close_hours]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        company: { type: string }
+        assigned: { type: integer }
+        verified: { type: integer }
+        rejected: { type: integer }
+        pending_review: { type: integer }
+        verification_rate: { type: number }
+        avg_close_hours: { type: number }
+    TrafficZone:
+      type: object
+      required: [id, name, ward_id, center_lat, center_lng, radius_m, density]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ward_id: { type: integer }
+        center_lat: { type: number }
+        center_lng: { type: number }
+        radius_m: { type: number }
+        density: { type: number }
+    Configuration:
+      type: object
+      required: [capture_max_age_s, gps_max_accuracy_m, dedup_radius_m, repair_radius_m, detector_mode, traffic_zones]
+      properties:
+        capture_max_age_s: { type: number }
+        gps_max_accuracy_m: { type: number }
+        dedup_radius_m: { type: number }
+        repair_radius_m: { type: number }
+        detector_mode: { type: string, enum: [auto, onnx, vision] }
+        traffic_zones:
+          type: array
+          items: { $ref: "#/components/schemas/TrafficZone" }

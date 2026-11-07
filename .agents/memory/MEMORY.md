@@ -1,0 +1,1 @@
+- [Field acceptance evidence](evidence-rules.md) — deterministic policy tests are not real-world image-verification acceptance.
