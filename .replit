@@ -22,3 +22,9 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "oneDNN", "openjpeg", "postgresql", "re2", "rustc", "tcl", "tk", "zlib"]
+
+[userenv]
+
+[userenv.development]
+EXPO_PUBLIC_API_URL = "https://7568e892-51e3-4492-86a8-30ac1403c107-00-29oizat6x5tv0.pike.replit.dev"
+CORS_ORIGINS = "https://7568e892-51e3-4492-86a8-30ac1403c107-00-29oizat6x5tv0.expo.pike.replit.dev"

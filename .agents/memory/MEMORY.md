@@ -1,1 +1,2 @@
 - [Field acceptance evidence](evidence-rules.md) — deterministic policy tests are not real-world image-verification acceptance.
+- [Expo version quirks](expo-version-quirks.md) — SDK 58 vendors navigation context; successful bundles do not prove external navigation hooks work.

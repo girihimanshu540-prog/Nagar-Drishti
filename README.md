@@ -4,10 +4,11 @@ Road-hazard reporting and repair verification. **No closure without verified evi
 
 ## Delivered scope
 
-This build delivers the selected **web application** and its shared **FastAPI + PostgreSQL** backend.
-The responsive browser app includes citizen and contractor live-camera workflows.
-**The native Expo mobile application is not included in this build.** The shared API accepts
-bearer JWTs for a future Expo client; do not confuse mobile-responsive web with a native app.
+The project includes the **web application**, a **native Expo / React Native companion**,
+and one shared **FastAPI + PostgreSQL** backend. Both clients provide citizen and
+contractor live-camera workflows. The native client lives in `artifacts/mobile/`,
+registered at `/mobile/`; it does not duplicate the backend or replace the web app.
+See [mobile setup and device acceptance](artifacts/mobile/README.md).
 
 ### Included
 
@@ -35,6 +36,7 @@ bearer JWTs for a future Expo client; do not confuse mobile-responsive web with 
 | `api/ai/pipeline.py` | Detection, image quality, geometry, SSIM/ORB and repair decisions |
 | `api/config.py` | Central defaults and AI/verification thresholds |
 | `artifacts/nagardrishti/` | React, Vite, Tailwind web app |
+| `artifacts/mobile/` | Expo native citizen/contractor companion; live camera, GPS and bearer sessions |
 | `artifacts/api-server/` | Managed service launcher for the Python API |
 | `lib/api-spec/openapi.yaml` | Web-client API contract |
 | `lib/api-client-react/` | Generated React Query hooks |
@@ -60,6 +62,9 @@ Start or restart the two managed workflows:
 
 - `artifacts/api-server: API Server`
 - `artifacts/nagardrishti: web`
+
+For native development also start `artifacts/mobile: expo`, after setting
+`EXPO_PUBLIC_API_URL`. The existing web workflow and `/` routes are unchanged.
 
 Outside Replit, the equivalent development commands are:
 
@@ -90,6 +95,7 @@ Never commit real secret values.
 | `PUBLIC_OBJECT_SEARCH_PATHS` | Managed public storage prefixes |
 | `DEMO_CENTER_LAT` / `DEMO_CENTER_LNG` | Seed center, defaults `18.5204` / `73.8567` (Pune) |
 | `CORS_ORIGINS` | Optional comma-separated allowed browser origins |
+| `EXPO_PUBLIC_API_URL` | Public API origin for Expo; no `/api` suffix; must be reachable from the phone |
 | `PORT` / `BASE_PATH` | Injected by the managed workflows |
 
 AI uses Replit AI Integrations: no personal API key is required; usage is billed to
@@ -133,8 +139,12 @@ and are audited, but remain demonstration decisions.
 - Uploads are multipart JPEG/PNG/WebP, maximum 8 MB; decoded size is limited to 25 MP.
 - Basic per-process rate limiting protects auth and mutation requests.
 
-For native clients, set `EXPO_PUBLIC_API_URL` to your deployment's verified API origin
-when the Expo app is built. No native client is currently shipped.
+For the native client, set `EXPO_PUBLIC_API_URL` to the existing API's reachable HTTPS
+origin before starting/bundling Expo, without `/api`. The current development
+configuration uses the development API, not a published service. See
+`artifacts/mobile/.env.example`. Native sessions use SecureStore and bearer JWTs;
+the browser preview uses an in-memory bearer session. The existing Vite app keeps
+its HTTP-only cookie authentication.
 
 ## Verification policy
 
@@ -191,12 +201,17 @@ database transaction. They are never enabled in live service code.
 | 5. Unrelated repair does not close | PASS for decision-policy test; real camera/photo integration not run |
 | 6. Genuine repair closes | PASS for all-gates decision-policy fixture; genuine on-site before/after acceptance not run |
 | 7. JE approve/reject audited | PASS, application tests for both decisions |
-| 8. Mobile actions appear on web within 15 s | NOT RUN: native mobile app is not included. Web queries poll every 15 s. |
+| 8. Mobile actions appear on web within 15 s | Native client implemented against the same API; genuine cross-device capture-to-web acceptance not run. Both clients poll every 15 s. |
 
 Also observed: a **real managed vision call** detected the defect in the synthetic test
 image, and **App Storage write/read round-trip passed**. These connectivity checks do
 not establish genuine on-site repair accuracy. Public desktop and phone-sized layouts
-were visually checked. Signed-in screens were not browser-interaction tested.
+were visually checked. The original signed-in web screens were not browser-interaction
+tested. The native addition's Expo browser checks covered citizen/contractor login,
+role-scoped lists/details, filters, logout and the capture permission screen; the
+existing Vite ticket page also passed a smoke check. Ten mobile policy/transport tests,
+TypeScript checks and Expo Doctor's 20 checks passed. Native bundle compilation is not
+physical-device camera/GPS, SecureStore or genuine field-image acceptance.
 
 Optional deployment smoke runner:
 
@@ -215,5 +230,6 @@ No schema mutation runs during build/startup. The managed Publish flow handles d
 schema changes for its production database. Review production data handling and provision
 authorized accounts before use; do not seed public demo staff into a live municipal service.
 
-The native Expo app, genuine field-image acceptance and cross-device end-to-end verification
-remain follow-up work.
+The native Expo client is implemented. Genuine field-image acceptance and physical
+cross-device end-to-end verification remain to be performed. This addition has not
+been published or deployed.

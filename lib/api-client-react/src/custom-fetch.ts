@@ -17,6 +17,15 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _fetchImplementation: typeof fetch | null = null;
+
+/**
+ * Optional transport for native clients (e.g. expo/fetch for filesystem Blobs).
+ * Web consumers keep the browser fetch implementation unless explicitly set.
+ */
+export function setFetchImplementation(implementation: typeof fetch | null): void {
+  _fetchImplementation = implementation;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -360,7 +369,7 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await (_fetchImplementation ?? fetch)(input, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

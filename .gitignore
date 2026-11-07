@@ -58,3 +58,5 @@ __pycache__/
 .pytest_cache/
 *.pyc
 /generated-artifacts/
+artifacts/mobile/.env
+artifacts/mobile/.env.local
