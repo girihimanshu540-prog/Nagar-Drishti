@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "lg_K7ITuJnANBlt4rd-SI"
+uri = "file://generated-artifacts/onnx-investigation/findings.html"
+type = "html"
+title = "ONNX validation findings"
+description = "Per-image confidence scores, label-mapping findings, preprocessing checks, and annotated box comparisons for all 10 supplied images."
+logical_id = "e8330c2e-7367-47fa-9562-46e874bd6165"
+content_hash = "sha256:b1ccf178bc5b6ea787825e1bdb36e5ce650dec87db2fca39cc112677ec7ea2b7"
+size = 413745
+mtime_ms = 1794125771331
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/e8330c2e-7367-47fa-9562-46e874bd6165/64cb2daf-acae-453c-b4c0-42fb42b5ae5c"
+storage_version_token = "1794125813007369"
+content_type = "text/html"
+
+[[outputs]]
+id = "m9ifc8k-7yOrJ83LJ6iel"
+uri = "file://generated-artifacts/onnx-investigation/results.csv"
+type = "table"
+title = "Validation scores and box matches"
+description = "Full filenames, scores for all five classes, retained detections at 65%, and box-overlap results."
+logical_id = "f5881c95-0261-4729-82e1-ee964f3400ec"
+content_hash = "sha256:f7cd6daeaa2a8d31a96a0f2e37bf397475944924bbd64845a56ebddf4c556419"
+size = 1603
+mtime_ms = 1794125771329
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/f5881c95-0261-4729-82e1-ee964f3400ec/3f56ef16-51f4-43f5-88d5-0cbb251edb7d"
+storage_version_token = "1794125814324982"
+content_type = "text/csv"
