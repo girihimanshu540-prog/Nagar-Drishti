@@ -1,2 +1,3 @@
 - [Field acceptance evidence](evidence-rules.md) — deterministic policy tests are not real-world image-verification acceptance.
 - [Expo version quirks](expo-version-quirks.md) — SDK 58 vendors navigation context; successful bundles do not prove external navigation hooks work.
+- [Model validation provenance](model-validation-provenance.md) — verify numeric training labels before remapping suspicious model classes or changing preprocessing.
