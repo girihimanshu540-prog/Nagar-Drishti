@@ -114,6 +114,12 @@ Observed during this addition:
 
 - Workspace TypeScript checks passed; the final mobile-specific check passed.
 - All 10 client policy/transport tests passed.
+- All 24 backend policy/API tests passed, including separate bearer-only and
+  cookie-authenticated sessions. New reports reach web list/detail/public reads,
+  and a wrong-location repair remains assigned with its rejection audit event
+  visible to web reads, each in under 15 seconds. These isolated tests use
+  explicit detection/storage fixtures and do not exercise native hardware,
+  real AI, browser rendering or the browser polling timer.
 - Expo dependency alignment passed, and Expo Doctor passed 20/20 checks.
 - iOS and Android native bundles compiled successfully (not installed on a device).
 - At 400×850, browser interaction checks passed for invalid-login errors, citizen

@@ -188,7 +188,7 @@ uv run python -m pytest tests/test_pipeline.py tests/test_api.py -q
 pnpm run typecheck
 ```
 
-**Observed: 22 tests passed; full TypeScript check passed.**
+**Observed: 24 tests passed; full TypeScript check passed.**
 Policy tests use explicit controlled AI/storage fixtures in an isolated rolled-back
 database transaction. They are never enabled in live service code.
 
@@ -201,7 +201,7 @@ database transaction. They are never enabled in live service code.
 | 5. Unrelated repair does not close | PASS for decision-policy test; real camera/photo integration not run |
 | 6. Genuine repair closes | PASS for all-gates decision-policy fixture; genuine on-site before/after acceptance not run |
 | 7. JE approve/reject audited | PASS, application tests for both decisions |
-| 8. Mobile actions appear on web within 15 s | Native client implemented against the same API; genuine cross-device capture-to-web acceptance not run. Both clients poll every 15 s. |
+| 8. Mobile actions appear on web within 15 s | Isolated bearer-to-cookie API tests pass: new reports and rejected-repair audit events are visible to web reads in under 15 s. This tests shared-backend visibility, not browser polling or genuine cross-device capture-to-web acceptance, which remain unrun. Both clients poll every 15 s. |
 
 Also observed: a **real managed vision call** detected the defect in the synthetic test
 image, and **App Storage write/read round-trip passed**. These connectivity checks do

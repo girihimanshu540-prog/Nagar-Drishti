@@ -4,6 +4,7 @@ The transaction is rolled back; fixtures never enter live request handlers.
 These are NOT real-camera or real-AI acceptance tests.
 """
 import io
+from time import monotonic
 from datetime import timedelta
 import numpy as np
 import pytest
@@ -41,6 +42,7 @@ def isolated(monkeypatch):
 def login(client, role):
     res = client.post("/api/auth/login", json={"email":role+"@nagardrishti.demo","password":"NagarDemo2026!"})
     assert res.status_code == 200, res.text
+    return res.json()
 
 def report(client, photo, delta=0, **changes):
     payload = dict(lat=17.123+delta/111195,lng=72.123,accuracy=5,captured_at=utcnow().isoformat(),capture_source="live_camera")
@@ -72,6 +74,12 @@ def test_old_and_gallery_rejected_before_ai(isolated):
 ])
 def test_je_review_state_and_audit(isolated,decision,status,event_type):
     client, db, photo = isolated
+    # Demo tickets are mutable through the UI. Establish the review precondition
+    # inside the rolled-back transaction instead of depending on current seed state.
+    ticket = db.get(Ticket, "ND-1043")
+    ticket.status = "NEEDS_JE_REVIEW"
+    ticket.closed_at = None
+    db.flush()
     login(client,"je")
     response = client.post("/api/tickets/ND-1043/review",json={"decision":decision,"notes":"Evidence inspected in isolated policy test."})
     assert response.status_code == 200, response.text
@@ -96,3 +104,60 @@ def test_public_detail_contains_no_user_email(isolated):
     assert "@nagardrishti.demo" not in response.text
     assert "citizen_id" not in response.text
     assert "password" not in response.text
+
+def test_mobile_bearer_report_is_visible_to_web_cookie_session(isolated):
+    """Transport/visibility regression, not physical camera or browser polling acceptance."""
+    web, db, photo = isolated
+    login(web, "je")
+    with TestClient(app, base_url="https://testserver") as mobile:
+        session = login(mobile, "citizen")
+        mobile.cookies.clear()  # Native requests cannot rely on web session cookies.
+        mobile.headers["Authorization"] = f"Bearer {session['access_token']}"
+        started = monotonic()
+        response = report(mobile, photo)
+        assert response.status_code == 200, response.text
+        created = response.json()
+        assert created["accepted"]
+        ticket_id = created["ticket"]["id"]
+        mine = mobile.get("/api/reports/mine")
+        assert mine.status_code == 200
+        assert any(r["ticket_id"] == ticket_id for r in mine.json())
+        listing = web.get("/api/tickets")
+        detail = web.get(f"/api/tickets/{ticket_id}")
+        public = web.get(f"/api/public/tickets/{ticket_id}")
+        assert listing.status_code == detail.status_code == public.status_code == 200
+        assert any(t["id"] == ticket_id for t in listing.json())
+        assert detail.json()["report_count"] == public.json()["report_count"] == 1
+        assert detail.json()["events"][-1]["event_type"] == "REPORTED"
+        assert monotonic() - started < 15
+
+def test_mobile_repair_rejection_audit_is_visible_to_web(isolated):
+    """Wrong-location bearer repair must stay open and reach the web read model."""
+    web, db, photo = isolated
+    login(web, "citizen")
+    created = report(web, photo).json()
+    ticket_id = created["ticket"]["id"]
+    with TestClient(app, base_url="https://testserver") as mobile:
+        session = login(mobile, "contractor")
+        mobile.cookies.clear()
+        mobile.headers["Authorization"] = f"Bearer {session['access_token']}"
+        login(web, "je")
+        assigned = web.post(f"/api/tickets/{ticket_id}/assign",
+                            json={"contractor_id": session["user"]["id"]})
+        assert assigned.status_code == 200, assigned.text
+        queue = mobile.get("/api/tickets", params={"mine": True})
+        assert queue.status_code == 200
+        assert any(t["id"] == ticket_id for t in queue.json())
+        started = monotonic()
+        response = mobile.post(f"/api/tickets/{ticket_id}/repair", data={
+            "lat": 17.123 + 40 / 111195, "lng": 72.123, "accuracy": 5,
+            "captured_at": utcnow().isoformat(), "capture_source": "live_camera",
+        }, files={"image": ("camera.jpg", photo, "image/jpeg")})
+        assert response.status_code == 200, response.text
+        assert response.json()["decision"] == "REJECTED"
+        detail = web.get(f"/api/tickets/{ticket_id}")
+        assert detail.status_code == 200
+        assert detail.json()["status"] == "ASSIGNED"
+        assert detail.json()["closed_at"] is None
+        assert detail.json()["events"][-1]["event_type"] == "REPAIR_REJECTED"
+        assert monotonic() - started < 15
