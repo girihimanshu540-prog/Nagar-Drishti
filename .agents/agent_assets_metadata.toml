@@ -126,3 +126,31 @@ mtime_ms = 1794128218751
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/6db55ace-59f2-47d9-b4f8-9c064aa05398/26629d37-82ce-4371-80c3-2d228f9205d2"
 storage_version_token = "1794128267975843"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "K5txAL0nISSF8FUlrjutS"
+uri = "file://generated-artifacts/colab-candidate-kit/NagarDrishti_Colab_candidate_kit.zip"
+type = "unspecified"
+title = "Download the Colab candidate-training kit"
+description = "Ready-to-run notebook, readable audit/evaluation helpers, baseline reference and instructions. Training has not been executed; all outputs remain separate from the current app and model."
+logical_id = "b9bc9c88-6873-41b4-bb65-ca80702ecd01"
+content_hash = "sha256:56eaf352a184e51bde04cf7a7775aceeb1598b2d5b9615c49cd18436e9aa9a65"
+size = 25077
+mtime_ms = 1794129802115
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/b9bc9c88-6873-41b4-bb65-ca80702ecd01/96da3ac6-00cf-4df3-925f-b74a0b763e82"
+storage_version_token = "1794129822728719"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "3TkBGqMWfMLOIYnvxphRb"
+uri = "file://generated-artifacts/colab-candidate-kit/Colab_step_by_step.html"
+type = "html"
+title = "Open the step-by-step Colab guide"
+description = "Audit class IDs, include independent difficult training examples, freeze validation, train a separate candidate and compare both models at 65%."
+logical_id = "690a34b1-97ed-4535-bb18-0027e6bfb420"
+content_hash = "sha256:d217b1254e2c4dc981a7d6db7ef443f99dd918732104a472c401501fd0a8d5e3"
+size = 5074
+mtime_ms = 1794129801696
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/690a34b1-97ed-4535-bb18-0027e6bfb420/dbef2d16-f35f-48c2-b056-fc1876c340da"
+storage_version_token = "1794129823961572"
+content_type = "text/html"

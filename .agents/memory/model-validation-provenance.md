@@ -56,3 +56,13 @@ the model's existing class would mislabel already-correct annotations.
 remap only in an isolated evaluation copy, and retain a source-to-corrected ID
 manifest with original-file integrity checks. Report results by source group as
 well as overall; a merged score can conceal a large difference between sources.
+
+Keep candidate training and evaluation separate from the current app, model and
+65% threshold until the user reviews the comparison.
+
+**Why:** The user explicitly requested that the current app and model remain
+unchanged until they review the candidate comparison.
+
+**How to apply:** Produce separate candidate weights and offline comparison
+artifacts. Do not replace the pinned active weights, change its class selection
+or threshold, or publish a candidate as part of preparing training instructions.
