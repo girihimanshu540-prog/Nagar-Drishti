@@ -28,3 +28,17 @@ mtime_ms = 1794125771329
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/f5881c95-0261-4729-82e1-ee964f3400ec/3f56ef16-51f4-43f5-88d5-0cbb251edb7d"
 storage_version_token = "1794125814324982"
 content_type = "text/csv"
+
+[[outputs]]
+id = "OG_w1TT33glz8dCFTRQNs"
+uri = "file://generated-artifacts/onnx-investigation/training-audit.html"
+type = "html"
+title = "Training labels and checkpoint audit"
+description = "Saved training filter, train/validation label counts, checkpoint-to-ONNX classifier comparison, annotated training samples, and conditional retraining recommendation."
+logical_id = "f2012cf0-50b4-4168-af1c-b0aa414553ac"
+content_hash = "sha256:c630a2055ed863750889c445e2fe4f0064d11756a34370b90a90dbfb16bda30b"
+size = 890598
+mtime_ms = 1794126248364
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/f2012cf0-50b4-4168-af1c-b0aa414553ac/b4ebdb74-be66-44a0-8339-2735fc2ea9ff"
+storage_version_token = "1794126275925067"
+content_type = "text/html"

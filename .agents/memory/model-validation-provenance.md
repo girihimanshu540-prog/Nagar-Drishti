@@ -22,3 +22,16 @@ Inspect train/valid/test numeric labels separately when they disagree; validatio
 inconsistency alone does not prove that the training split has the same issue.
 Public source images with unknown training-export membership are not a verified
 validation split. Synthetic decoder tests prove only decoding behavior.
+
+Inspect the checkpoint's saved `classes` filter, not just its class names.
+With `single_cls=False`, that filter selects numeric IDs; it does not remap
+other IDs into the selected class.
+
+**Why:** A saved class filter excluded the IDs used by the supplied validation
+potholes even though checkpoint and ONNX class names agreed. Matching export
+metadata did not establish correct training supervision.
+
+**How to apply:** Verify the semantic training IDs with actual pothole-containing
+image/label pairs. Animal-only samples cannot establish the pothole ID. Recommend
+retraining when positive supervision was discarded or inconsistent, but distinguish
+that from a validation-only mapping error that first needs corrected evaluation.
