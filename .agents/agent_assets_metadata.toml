@@ -154,3 +154,17 @@ mtime_ms = 1794129801696
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/690a34b1-97ed-4535-bb18-0027e6bfb420/dbef2d16-f35f-48c2-b056-fc1876c340da"
 storage_version_token = "1794129823961572"
 content_type = "text/html"
+
+[[outputs]]
+id = "EtKVIU63zXVy0UXNnRMRU"
+uri = "file://generated-artifacts/colab-candidate-kit/NagarDrishti_candidate_comparison.ipynb"
+type = "unspecified"
+title = "Download the Colab notebook (.ipynb)"
+description = "The standalone NagarDrishti candidate-training and comparison notebook. Download this file, then open it in Google Colab using File → Upload notebook. Helper modules are embedded; no separate helper uploads are needed."
+logical_id = "01830f63-8a4e-4b57-833f-2525e6e312ba"
+content_hash = "sha256:5af46e209fd211dfbfed17986c1324c921e52c751bce51fe3ebe56b90d21e9b4"
+size = 29838
+mtime_ms = 1794129801695
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/01830f63-8a4e-4b57-833f-2525e6e312ba/c008a5dc-d65e-464a-96fb-387cfe83c15d"
+storage_version_token = "1794152689456184"
+content_type = "application/octet-stream"
