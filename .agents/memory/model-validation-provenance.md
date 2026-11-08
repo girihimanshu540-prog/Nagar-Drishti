@@ -43,3 +43,16 @@ the selected ONNX output class agree. Correcting validation class IDs will fix
 class-aware scoring, not low confidence or missed boxes. Do not recommend
 mandatory retraining solely from this cross-split mismatch; first evaluate a
 consistently labeled, representative validation set.
+
+Audit all validation class IDs before applying a correction. For this dataset's
+evaluation copy, merge pothole alias 1 into model class 2 while preserving
+existing class 2 and all non-target classes.
+
+**Why:** The complete supplied validation archive contains potholes under both
+IDs, not just the ID found in the first small sample. Swapping IDs or replacing
+the model's existing class would mislabel already-correct annotations.
+
+**How to apply:** Count source annotations, visually verify the source category,
+remap only in an isolated evaluation copy, and retain a source-to-corrected ID
+manifest with original-file integrity checks. Report results by source group as
+well as overall; a merged score can conceal a large difference between sources.

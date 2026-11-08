@@ -56,3 +56,45 @@ mtime_ms = 1794126548326
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/67b48efd-cc47-4548-8c1b-d05f0c2e5d9e/69a19f26-03d4-45c2-b98d-0fea2cd9ad97"
 storage_version_token = "1794126590930810"
 content_type = "text/csv"
+
+[[outputs]]
+id = "THF440R7UtDyKpQGouljZ"
+uri = "file://generated-artifacts/onnx-full-validation/full-validation-report.html"
+type = "html"
+title = "Full validation results at 65%"
+description = "Results for all 609 images: confidence scores, precision/recall, box-match counts, source-group comparison, annotated examples and integrity checks."
+logical_id = "13509cb5-0b9b-4fef-b24b-b9045f858612"
+content_hash = "sha256:182f7468146d68491ad43816c7bba37979ac9bb913433c4575f671ca68119d0e"
+size = 546370
+mtime_ms = 1794127896594
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/13509cb5-0b9b-4fef-b24b-b9045f858612/7ea18d49-2577-4067-b41e-1a1e0b0caf2f"
+storage_version_token = "1794127956365353"
+content_type = "text/html"
+
+[[outputs]]
+id = "WtEko7cwhs22y1YwBttaj"
+uri = "file://generated-artifacts/onnx-full-validation/validation-evaluation-results.zip"
+type = "unspecified"
+title = "Detailed evaluation results"
+description = "Per-image confidence scores, all predicted boxes and matches, every missed pothole annotation, summary metrics and integrity manifests."
+logical_id = "7fc66cfd-5f62-4c63-95e1-223e71762968"
+content_hash = "sha256:42a112f37b8650c65ab48540ea1d1c43ecf59a570a900d5963de7b5f3e0dd5c5"
+size = 723180
+mtime_ms = 1794127899651
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/7fc66cfd-5f62-4c63-95e1-223e71762968/f472ae67-b3ec-4f16-ba23-a33a766dc209"
+storage_version_token = "1794127957668145"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "27qSs-vgCQ3_UqQNy_3Wr"
+uri = "file://generated-artifacts/onnx-full-validation/corrected-validation-copy.zip"
+type = "unspecified"
+title = "Corrected validation copy"
+description = "Separate copy of all 609 images and labels. Only pothole class 1 was merged into class 2; existing class-2 and non-target labels were preserved."
+logical_id = "5ba2a669-57e1-426f-ac95-9094610e860c"
+content_hash = "sha256:516560fb2fef0710adba7f799bf4ea981065e454abfea199e9a6a2cf1a65c2f4"
+size = 37990342
+mtime_ms = 1794127899575
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/5ba2a669-57e1-426f-ac95-9094610e860c/9db499c9-199c-404f-b957-62843851bb62"
+storage_version_token = "1794127959436874"
+content_type = "application/octet-stream"
