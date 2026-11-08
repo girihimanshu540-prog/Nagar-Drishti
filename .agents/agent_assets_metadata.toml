@@ -61,14 +61,14 @@ content_type = "text/csv"
 id = "THF440R7UtDyKpQGouljZ"
 uri = "file://generated-artifacts/onnx-full-validation/full-validation-report.html"
 type = "html"
-title = "Full validation results at 65%"
-description = "Results for all 609 images: confidence scores, precision/recall, box-match counts, source-group comparison, annotated examples and integrity checks."
+title = "Open or download the annotated validation report"
+description = "Full 609-image evaluation at 65%, including metrics, annotated examples, class-mapping details and integrity checks."
 logical_id = "13509cb5-0b9b-4fef-b24b-b9045f858612"
 content_hash = "sha256:182f7468146d68491ad43816c7bba37979ac9bb913433c4575f671ca68119d0e"
 size = 546370
 mtime_ms = 1794127896594
-storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/13509cb5-0b9b-4fef-b24b-b9045f858612/7ea18d49-2577-4067-b41e-1a1e0b0caf2f"
-storage_version_token = "1794127956365353"
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/13509cb5-0b9b-4fef-b24b-b9045f858612/c07e5ca3-6191-4c61-94c4-d7a62d654ad0"
+storage_version_token = "1794128263206303"
 content_type = "text/html"
 
 [[outputs]]
@@ -89,12 +89,40 @@ content_type = "application/octet-stream"
 id = "27qSs-vgCQ3_UqQNy_3Wr"
 uri = "file://generated-artifacts/onnx-full-validation/corrected-validation-copy.zip"
 type = "unspecified"
-title = "Corrected validation copy"
-description = "Separate copy of all 609 images and labels. Only pothole class 1 was merged into class 2; existing class-2 and non-target labels were preserved."
+title = "Download the corrected validation dataset"
+description = "About 38 MB. Separate copy of 609 image-label pairs; class 1 potholes mapped to class 2, existing class 2 preserved. Originals unchanged."
 logical_id = "5ba2a669-57e1-426f-ac95-9094610e860c"
 content_hash = "sha256:516560fb2fef0710adba7f799bf4ea981065e454abfea199e9a6a2cf1a65c2f4"
 size = 37990342
 mtime_ms = 1794127899575
-storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/5ba2a669-57e1-426f-ac95-9094610e860c/9db499c9-199c-404f-b957-62843851bb62"
-storage_version_token = "1794127959436874"
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/5ba2a669-57e1-426f-ac95-9094610e860c/c0dc84d3-4c40-42a6-9fc1-53ca3d11b273"
+storage_version_token = "1794128265383645"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "piMNDsC-4amN-Kk3NoRqq"
+uri = "file://generated-artifacts/onnx-full-validation/class-1-labels-vs-predictions.jpg"
+type = "image"
+title = "Class 1 examples: labels beside predictions"
+description = "Two examples: original class 1 labels corrected to class 2. Labels on the left; saved model predictions at 65% on the right."
+logical_id = "653ea16b-e019-431d-bd9c-40e5589a101f"
+content_hash = "sha256:3aa6b22666be35fba95f6b3eae5f67507a7fa704d183ec87a399e52571eccb1a"
+size = 460225
+mtime_ms = 1794128218507
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/653ea16b-e019-431d-bd9c-40e5589a101f/001551d8-9849-4033-90e6-3c5ec35c8280"
+storage_version_token = "1794128266670874"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "M6Q9Nd0NmXNWN-tnbmxuk"
+uri = "file://generated-artifacts/onnx-full-validation/class-2-labels-vs-predictions.jpg"
+type = "image"
+title = "Class 2 examples: labels beside predictions"
+description = "Two examples with unchanged class 2 labels. Labels on the left; saved model predictions at 65% on the right."
+logical_id = "6db55ace-59f2-47d9-b4f8-9c064aa05398"
+content_hash = "sha256:e524b449f454ff782e92805f8aa0e4217257b6a002a3bb51173df5ac32877ade"
+size = 643205
+mtime_ms = 1794128218751
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/6db55ace-59f2-47d9-b4f8-9c064aa05398/26629d37-82ce-4371-80c3-2d228f9205d2"
+storage_version_token = "1794128267975843"
+content_type = "image/jpeg"
