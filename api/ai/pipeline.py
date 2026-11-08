@@ -5,9 +5,9 @@ never produces automatic closure. Local heuristics are signals, not proof.
 """
 import base64
 import io
+import logging
 import math
 import os
-from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image, UnidentifiedImageError
@@ -108,9 +108,6 @@ def vision_json(prompt, images, model_type):
         raise AnalysisUnavailable("Vision analysis did not complete. No closure or acceptance was fabricated; please retry.") from exc
 
 def detect(data, rgb, mode):
-    model = Path(__file__).resolve().parents[1] / "models/pothole.onnx"
-    if mode == "onnx" and not model.exists():
-        raise AnalysisUnavailable("ONNX mode is selected but api/models/pothole.onnx is missing.")
     moire = screen_signal(rgb)
     # Vision checks provenance even when ONNX performs road-defect detection.
     result = vision_json(
@@ -118,28 +115,28 @@ def detect(data, rgb, mode):
         f'FFT moire signal is {moire:.2f}; use only as supporting information. Return JSON with defect_present boolean, defect_type string, severity integer 1-5, confidence 0-1, reason string, is_screen boolean, bbox [x1,y1,x2,y2] normalized 0-1 around the main defect, or [].',
         [data], Detection)
     engine_name = "vision"
-    if mode in ("onnx", "auto") and model.exists():
-        import onnxruntime as ort
-        sess = ort.InferenceSession(str(model), providers=["CPUExecutionProvider"])
-        # YOLOv8 detection export [1,4+classes,N] at fixed 640 input.
-        inp = cv2.resize(rgb, (640, 640)).astype(np.float32) / 255
-        output = sess.run(None, {sess.get_inputs()[0].name: inp.transpose(2, 0, 1)[None]})[0]
-        rows = output[0]
-        if rows.shape[0] < rows.shape[1]:
-            rows = rows.T
-        if rows.shape[1] < 5:
-            raise AnalysisUnavailable("ONNX model output is not a supported YOLOv8 detection export.")
-        boxes = [r for r in rows if float(max(r[4:])) >= config.MIN_DETECTION_CONFIDENCE]
-        result.defect_present = bool(boxes)
+    if mode in ("onnx", "auto"):
+        from .onnx_detector import detect_potholes
+        try:
+            boxes = detect_potholes(rgb, config.MIN_DETECTION_CONFIDENCE)
+            engine_name = "onnx+vision"
+        except Exception as exc:
+            if mode == "onnx":
+                raise AnalysisUnavailable("ONNX detection is unavailable or incompatible. Select auto or vision to use the vision fallback.") from exc
+            logging.getLogger(__name__).warning("ONNX unavailable; using vision fallback: %s", exc)
+            boxes = []
+            result.reason += " ONNX was unavailable; vision fallback was used."
         if boxes:
-            best = max(boxes, key=lambda r: float(max(r[4:])))
-            x, y, w, h = [float(v)/640 for v in best[:4]]
-            result.bbox = [max(0, x-w/2), max(0, y-h/2), min(1, x+w/2), min(1, y+h/2)]
-            result.confidence = float(max(best[4:]))
-            area = w*h
+            best = max(boxes, key=lambda box: box["confidence"])
+            result.defect_present = True
+            result.defect_type = "pothole"
+            result.bbox = best["bbox"]
+            result.confidence = best["confidence"]
+            area = (result.bbox[2] - result.bbox[0]) * (result.bbox[3] - result.bbox[1])
             result.severity = min(5, max(1, math.ceil(area*12 + min(len(boxes), 5)*0.3 + result.confidence)))
-            result.reason = f"ONNX detected {len(boxes)} road defect region(s), largest area {area:.1%}; confidence {result.confidence:.1%}. " + result.reason
-        engine_name = "onnx+vision"
+            result.reason = f"ONNX detected {len(boxes)} pothole region(s) after overlap suppression; primary area {area:.1%}, confidence {result.confidence:.1%}. " + result.reason
+        # Absence of potholes cannot disprove cracks or other vision-detected
+        # hazards, nor manufacture high-confidence evidence of a repaired road.
     result_data = result.model_dump()
     box = result_data["bbox"]
     if engine_name == "vision" and result_data["defect_present"] and len(box) == 4:

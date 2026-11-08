@@ -58,5 +58,8 @@ __pycache__/
 .pytest_cache/
 *.pyc
 /generated-artifacts/
+/api/models/*.onnx
+/api/models/*.download
+/attached_assets/*.onnx
 artifacts/mobile/.env
 artifacts/mobile/.env.local

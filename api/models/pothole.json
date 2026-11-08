@@ -1,0 +1,10 @@
+{
+  "sha256": "db91ab467e9891d6312fe9116873bb0064ba3753e09fdb090258a6809eef6da2",
+  "size_bytes": 12777248,
+  "storage_key": "models/pothole-db91ab467e9891d6312fe9116873bb0064ba3753e09fdb090258a6809eef6da2.onnx",
+  "input_shape": [1, 3, 640, 640],
+  "output_shape": [1, 9, 8400],
+  "pothole_class_id": 2,
+  "model_license_metadata": "AGPL-3.0",
+  "dataset_license_metadata": "CC BY 4.0"
+}

@@ -155,10 +155,30 @@ but cannot loosen these product limits.
 Priority is literally `0.6 * severity + 0.4 * configured_traffic_density`, where severity
 is 1–5 and density is 0–1. Density is a **configured traffic index**, not live traffic.
 
-ONNX model location: `api/models/pothole.onnx`. Supported export is YOLOv8 detection
-format `[1,4+classes,N]` at 640 px input; other exports must be adapted explicitly.
-The model is not supplied; `auto` uses the real vision fallback. Vision independently
-screens for screen photography even when ONNX detection is used. Models may make mistakes.
+The supplied trained ONNX model is installed at `api/models/pothole.onnx`:
+float32 RGB input `[1,3,640,640]`, YOLO detection output `[1,9,8400]`.
+Only class 2 (`Pothole`) is used; the other four metadata labels are dataset
+attribution strings, not supported defect categories. Overlapping predictions
+are suppressed before computing severity. No pothole detection does not override
+a vision-detected crack or other hazard.
+
+The 12.8 MB binary is excluded from Git and stored durably in private App Storage.
+`api/models/pothole.json` pins its SHA-256, size, class and storage key. If the local
+file is missing, the loader restores it from the configured private bucket and
+verifies its integrity before loading. Inference sessions are cached on CPU.
+`auto` uses ONNX plus the existing vision assessment, falling back explicitly to
+vision if model restoration/loading/inference fails. `vision` bypasses ONNX;
+forced `onnx` mode returns an explicit unavailable error if the model fails.
+Vision independently screens for screen photography even when ONNX is used,
+and the existing repair-closure gates are unchanged. Models may make mistakes.
+
+Model metadata declares AGPL-3.0 and includes a dataset CC BY 4.0 attribution;
+confirm applicable model/data licensing before distributing or commercializing.
+
+ONNX integration verification: CPU loading/inference and checksum-verified App
+Storage restoration succeeded. `uv run python -m pytest tests/test_onnx_detector.py
+tests/test_pipeline.py tests/test_api.py -q` passed 31 tests. This verifies integration
+and policy behavior, not real-world detector accuracy or genuine repair acceptance.
 
 SSIM is similarity, not proof of repair: surroundings must match, while the original
 defect region must change. Missing boxes or weak feature evidence require JE review.
