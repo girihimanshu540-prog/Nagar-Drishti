@@ -83,9 +83,17 @@ def decode_detections(output, class_id, threshold):
              "confidence": scores[i]} for i in indices]
 
 
+class PotholeDetections(list):
+    """Keep existing list semantics while exposing a separate raw model score."""
+    def __init__(self, boxes, confidence):
+        super().__init__(boxes)
+        self.confidence = confidence
+
+
 def detect_potholes(rgb, threshold):
     session, class_id = load_session()
     image = cv2.resize(rgb, (640, 640)).astype(np.float32) / 255
     tensor = np.ascontiguousarray(image.transpose(2, 0, 1)[None])
     output = session.run(None, {session.get_inputs()[0].name: tensor})[0]
-    return decode_detections(output, class_id, threshold)
+    boxes = decode_detections(output, class_id, threshold)
+    return PotholeDetections(boxes, float(np.clip(output[0, 4 + class_id].max(), 0, 1)))

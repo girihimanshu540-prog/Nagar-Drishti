@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { OnnxSummary } from '@/components/OnnxSummary';
 import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useGetMyReports, useGetTickets, type Report, type Ticket } from '@workspace/api-client-react';
@@ -62,6 +63,7 @@ export default function MyTicketsScreen() {
           {item.report.ticket_id ? <Button title={`View ${item.report.ticket_id}`} secondary testID={`report-ticket-${item.report.id}`}
             onPress={() => router.push({ pathname: '/tickets/[id]', params: { id: item.report.ticket_id! } })} /> : null}
         </View>}
+        <OnnxSummary result={item.report.onnx} />
         <Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10, paddingTop: 8, paddingBottom: 4 }}>CAPTURE #{item.report.id} · {new Date(item.report.captured_at).toLocaleString()}</Text>
       </View>}
     </View>} />;

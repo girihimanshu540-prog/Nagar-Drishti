@@ -6,6 +6,7 @@ import { useColors } from '@/hooks/useColors';
 import { fonts } from '@/constants/theme';
 import { Button, Notice, surface, useBottomSpace } from './ScreenState';
 import { statusLabel } from './TicketCard';
+import { OnnxSummary } from './OnnxSummary';
 
 export function SubmissionResult({ result, repair, onRetake }: { result: CaptureResult; repair: boolean; onRetake: () => void }) {
   const c = useColors(); const bottom = useBottomSpace();
@@ -17,6 +18,7 @@ export function SubmissionResult({ result, repair, onRetake }: { result: Capture
     <View style={{ paddingVertical: 20 }}><Feather size={46} color={closed || (!repair && result.accepted) ? c.success : c.primary} name={closed ? 'check-circle' : 'clipboard'} /></View>
     <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 32 }}>{title}</Text>
     <Notice danger={!result.accepted}>{result.reason}</Notice>
+    {!repair ? <OnnxSummary result={result.onnx} /> : null}
     <View style={surface(c)}>
       <Text style={{ color: c.primary, fontFamily: fonts.mono, textTransform: 'uppercase', fontSize: 12 }}>{statusLabel(result.decision)}</Text>
       {result.ticket ? <Text style={{ color: c.foreground, fontFamily: fonts.semibold }}>{result.ticket.id} · {result.ticket.title}</Text> : null}

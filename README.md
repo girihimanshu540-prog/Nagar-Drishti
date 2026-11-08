@@ -180,6 +180,26 @@ Storage restoration succeeded. `uv run python -m pytest tests/test_onnx_detector
 tests/test_pipeline.py tests/test_api.py -q` passed 31 tests. This verifies integration
 and policy behavior, not real-world detector accuracy or genuine repair acceptance.
 
+### See the ONNX result after a citizen report
+
+Sign in as a citizen, open **Report a road hazard** (`/report`), capture a live
+photo, and choose **File report**. The accepted/rejected confirmation includes
+**ONNX pothole model**: whether inference completed, whether a qualifying pothole
+was detected, the highest raw pothole-class confidence score, and the existing
+65% detection threshold. This score is separate from vision confidence and the
+final report/ticket decision. A high raw score still needs the existing class
+and valid-box filters to count as a detection.
+
+If ONNX fails, the summary identifies the vision fallback and shows no invented
+confidence. Vision-only mode or pre-analysis capture rejection shows that ONNX
+did not run. These diagnostics do not change acceptance, deduplication, severity,
+ticket creation or fallback decisions.
+
+New report diagnostics are saved with the existing report JSON and remain
+visible in **Tickets → My reports** after navigation/reload. Older and synthetic
+reports without diagnostics show “not recorded,” not manufactured scores.
+The native app shows the same information on submission and in **Your reports**.
+
 SSIM is similarity, not proof of repair: surroundings must match, while the original
 defect region must change. Missing boxes or weak feature evidence require JE review.
 The backend does not accept client-provided verification scores or close decisions.

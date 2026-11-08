@@ -108,6 +108,11 @@ export const GetTicketParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const getTicketResponseTwoReportsItemOnnxOneConfidenceMin = 0;
+export const getTicketResponseTwoReportsItemOnnxOneConfidenceMax = 1;
+
+
+
 export const GetTicketResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
@@ -142,6 +147,13 @@ export const GetTicketResponse = zod.object({
   "validation_status": zod.string(),
   "reason": zod.string(),
   "severity": zod.number().int(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(getTicketResponseTwoReportsItemOnnxOneConfidenceMin).max(getTicketResponseTwoReportsItemOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
   "bbox": zod.array(zod.number()).optional()
 })),
   "repairs": zod.array(zod.object({
@@ -172,6 +184,11 @@ export const GetTicketResponse = zod.object({
 export const GetPublicTicketParams = zod.object({
   "id": zod.coerce.string()
 })
+
+export const getPublicTicketResponseTwoReportsItemOnnxOneConfidenceMin = 0;
+export const getPublicTicketResponseTwoReportsItemOnnxOneConfidenceMax = 1;
+
+
 
 export const GetPublicTicketResponse = zod.object({
   "id": zod.string(),
@@ -207,6 +224,13 @@ export const GetPublicTicketResponse = zod.object({
   "validation_status": zod.string(),
   "reason": zod.string(),
   "severity": zod.number().int(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(getPublicTicketResponseTwoReportsItemOnnxOneConfidenceMin).max(getPublicTicketResponseTwoReportsItemOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
   "bbox": zod.array(zod.number()).optional()
 })),
   "repairs": zod.array(zod.object({
@@ -242,6 +266,11 @@ export const AssignTicketBody = zod.object({
   "contractor_id": zod.number().int()
 })
 
+export const assignTicketResponseTwoReportsItemOnnxOneConfidenceMin = 0;
+export const assignTicketResponseTwoReportsItemOnnxOneConfidenceMax = 1;
+
+
+
 export const AssignTicketResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
@@ -276,6 +305,13 @@ export const AssignTicketResponse = zod.object({
   "validation_status": zod.string(),
   "reason": zod.string(),
   "severity": zod.number().int(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(assignTicketResponseTwoReportsItemOnnxOneConfidenceMin).max(assignTicketResponseTwoReportsItemOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
   "bbox": zod.array(zod.number()).optional()
 })),
   "repairs": zod.array(zod.object({
@@ -316,6 +352,11 @@ export const ReviewTicketBody = zod.object({
   "notes": zod.string().min(reviewTicketBodyNotesMin)
 })
 
+export const reviewTicketResponseTwoReportsItemOnnxOneConfidenceMin = 0;
+export const reviewTicketResponseTwoReportsItemOnnxOneConfidenceMax = 1;
+
+
+
 export const ReviewTicketResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
@@ -350,6 +391,13 @@ export const ReviewTicketResponse = zod.object({
   "validation_status": zod.string(),
   "reason": zod.string(),
   "severity": zod.number().int(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(reviewTicketResponseTwoReportsItemOnnxOneConfidenceMin).max(reviewTicketResponseTwoReportsItemOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
   "bbox": zod.array(zod.number()).optional()
 })),
   "repairs": zod.array(zod.object({
@@ -386,6 +434,11 @@ export const SubmitReportBody = zod.object({
   "capture_source": zod.string()
 })
 
+export const submitReportResponseOnnxOneConfidenceMin = 0;
+export const submitReportResponseOnnxOneConfidenceMax = 1;
+
+
+
 export const SubmitReportResponse = zod.object({
   "accepted": zod.boolean(),
   "reason": zod.string(),
@@ -412,7 +465,14 @@ export const SubmitReportResponse = zod.object({
   "created_at": zod.string(),
   "detector_engine": zod.string(),
   "is_demo": zod.boolean()
-}).optional()
+}).optional(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(submitReportResponseOnnxOneConfidenceMin).max(submitReportResponseOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional()
 })
 
 
@@ -428,6 +488,11 @@ export const SubmitRepairBody = zod.object({
   "captured_at": zod.string(),
   "capture_source": zod.string()
 })
+
+export const submitRepairResponseOnnxOneConfidenceMin = 0;
+export const submitRepairResponseOnnxOneConfidenceMax = 1;
+
+
 
 export const SubmitRepairResponse = zod.object({
   "accepted": zod.boolean(),
@@ -455,8 +520,20 @@ export const SubmitRepairResponse = zod.object({
   "created_at": zod.string(),
   "detector_engine": zod.string(),
   "is_demo": zod.boolean()
-}).optional()
+}).optional(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(submitRepairResponseOnnxOneConfidenceMin).max(submitRepairResponseOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional()
 })
+
+
+export const getMyReportsResponseOnnxOneConfidenceMin = 0;
+export const getMyReportsResponseOnnxOneConfidenceMax = 1;
+
 
 
 export const GetMyReportsResponseItem = zod.object({
@@ -472,6 +549,13 @@ export const GetMyReportsResponseItem = zod.object({
   "validation_status": zod.string(),
   "reason": zod.string(),
   "severity": zod.number().int(),
+  "onnx": zod.union([zod.object({
+  "status": zod.enum(['ran', 'not_run', 'failed']),
+  "detected": zod.boolean().nullable(),
+  "confidence": zod.number().min(getMyReportsResponseOnnxOneConfidenceMin).max(getMyReportsResponseOnnxOneConfidenceMax).nullable(),
+  "confidence_threshold": zod.number(),
+  "reason": zod.string()
+}),zod.null()]).optional(),
   "bbox": zod.array(zod.number()).optional()
 })
 export const GetMyReportsResponse = zod.array(GetMyReportsResponseItem)

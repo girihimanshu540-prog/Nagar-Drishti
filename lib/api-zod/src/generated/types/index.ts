@@ -17,6 +17,8 @@ export * from './getStatsParams';
 export * from './getTicketsParams';
 export * from './healthStatus';
 export * from './loginInput';
+export * from './onnxResult';
+export * from './onnxResultStatus';
 export * from './registrationInput';
 export * from './repair';
 export * from './report';

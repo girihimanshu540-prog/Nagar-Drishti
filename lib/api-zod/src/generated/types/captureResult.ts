@@ -5,6 +5,7 @@
  * NagarDrishti evidence-based road repair API
  * OpenAPI spec version: 1.0.0
  */
+import type { OnnxResult } from './onnxResult';
 import type { Ticket } from './ticket';
 
 export interface CaptureResult {
@@ -14,4 +15,5 @@ export interface CaptureResult {
   severity?: number;
   detector_engine: string;
   ticket?: Ticket;
+  onnx?: OnnxResult | null;
 }

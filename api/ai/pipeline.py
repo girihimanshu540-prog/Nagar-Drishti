@@ -115,16 +115,23 @@ def detect(data, rgb, mode):
         f'FFT moire signal is {moire:.2f}; use only as supporting information. Return JSON with defect_present boolean, defect_type string, severity integer 1-5, confidence 0-1, reason string, is_screen boolean, bbox [x1,y1,x2,y2] normalized 0-1 around the main defect, or [].',
         [data], Detection)
     engine_name = "vision"
+    onnx = {"status": "not_run", "detected": None, "confidence": None,
+            "confidence_threshold": config.MIN_DETECTION_CONFIDENCE,
+            "reason": "Vision-only mode is selected; the ONNX model was not run."}
     if mode in ("onnx", "auto"):
         from .onnx_detector import detect_potholes
         try:
             boxes = detect_potholes(rgb, config.MIN_DETECTION_CONFIDENCE)
             engine_name = "onnx+vision"
+            onnx.update(status="ran", detected=bool(boxes),
+                        confidence=getattr(boxes, "confidence", max((box["confidence"] for box in boxes), default=0.0)),
+                        reason="Highest raw pothole-class score. Detection also requires the existing class, confidence, and valid-box filters.")
         except Exception as exc:
             if mode == "onnx":
                 raise AnalysisUnavailable("ONNX detection is unavailable or incompatible. Select auto or vision to use the vision fallback.") from exc
             logging.getLogger(__name__).warning("ONNX unavailable; using vision fallback: %s", exc)
             boxes = []
+            onnx.update(status="failed", reason="ONNX did not complete successfully; the existing vision fallback was used.")
             result.reason += " ONNX was unavailable; vision fallback was used."
         if boxes:
             best = max(boxes, key=lambda box: box["confidence"])
@@ -145,6 +152,7 @@ def detect(data, rgb, mode):
         result_data["reason"] += f" Severity {result_data['severity']}/5 derives from defect area {area:.1%}, one primary region and confidence {result_data['confidence']:.1%}."
     result_data["screen_fft_signal"] = moire
     result_data["engine"] = engine_name
+    result_data["onnx"] = onnx
     return result_data
 
 def image_metrics(before_bytes, after_bytes, bbox):

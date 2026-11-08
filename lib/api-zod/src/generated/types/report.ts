@@ -5,6 +5,7 @@
  * NagarDrishti evidence-based road repair API
  * OpenAPI spec version: 1.0.0
  */
+import type { OnnxResult } from './onnxResult';
 
 export interface Report {
   id: number;
@@ -20,5 +21,6 @@ export interface Report {
   validation_status: string;
   reason: string;
   severity: number;
+  onnx?: OnnxResult | null;
   bbox?: number[];
 }

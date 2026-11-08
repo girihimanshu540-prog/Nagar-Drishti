@@ -87,6 +87,29 @@ export interface Ticket {
   is_demo: boolean;
 }
 
+export type OnnxResultStatus = typeof OnnxResultStatus[keyof typeof OnnxResultStatus];
+
+
+export const OnnxResultStatus = {
+  ran: 'ran',
+  not_run: 'not_run',
+  failed: 'failed',
+} as const;
+
+export interface OnnxResult {
+  status: OnnxResultStatus;
+  /** @nullable */
+  detected: boolean | null;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  confidence: number | null;
+  confidence_threshold: number;
+  reason: string;
+}
+
 export interface Report {
   id: number;
   /** @nullable */
@@ -101,6 +124,7 @@ export interface Report {
   validation_status: string;
   reason: string;
   severity: number;
+  onnx?: OnnxResult | null;
   bbox?: number[];
 }
 
@@ -173,6 +197,7 @@ export interface CaptureResult {
   severity?: number;
   detector_engine: string;
   ticket?: Ticket;
+  onnx?: OnnxResult | null;
 }
 
 export interface WardStats {

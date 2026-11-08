@@ -322,6 +322,10 @@ components:
         validation_status: { type: string }
         reason: { type: string }
         severity: { type: integer }
+        onnx:
+          anyOf:
+            - { $ref: "#/components/schemas/OnnxResult" }
+            - { type: "null" }
         bbox:
           type: array
           items: { type: number }
@@ -387,6 +391,15 @@ components:
         accuracy: { type: number }
         captured_at: { type: string }
         capture_source: { type: string }
+    OnnxResult:
+      type: object
+      required: [status, detected, confidence, confidence_threshold, reason]
+      properties:
+        status: { type: string, enum: [ran, not_run, failed] }
+        detected: { type: [boolean, "null"] }
+        confidence: { type: [number, "null"], minimum: 0, maximum: 1 }
+        confidence_threshold: { type: number }
+        reason: { type: string }
     CaptureResult:
       type: object
       required: [accepted, reason, decision, detector_engine]
@@ -397,6 +410,10 @@ components:
         severity: { type: integer }
         detector_engine: { type: string }
         ticket: { $ref: "#/components/schemas/Ticket" }
+        onnx:
+          anyOf:
+            - { $ref: "#/components/schemas/OnnxResult" }
+            - { type: "null" }
     WardStats:
       type: object
       required: [ward_id, name, total, open, closed]

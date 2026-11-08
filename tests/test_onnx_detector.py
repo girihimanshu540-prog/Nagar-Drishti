@@ -16,6 +16,7 @@ def test_model_loads_and_runs_on_cpu():
     assert session.get_providers() == ["CPUExecutionProvider"]
     boxes = onnx_detector.detect_potholes(np.zeros((480, 640, 3), np.uint8), .65)
     assert isinstance(boxes, list)
+    assert 0 <= boxes.confidence <= 1
 
 
 def test_only_pothole_class_counts_and_overlaps_are_suppressed():
@@ -46,6 +47,8 @@ def test_auto_falls_back_when_onnx_fails(monkeypatch):
     assert result["engine"] == "vision"
     assert result["defect_present"]
     assert "fallback" in result["reason"]
+    assert result["onnx"]["status"] == "failed"
+    assert result["onnx"]["detected"] is None and result["onnx"]["confidence"] is None
     with pytest.raises(pipeline.AnalysisUnavailable, match="ONNX"):
         pipeline.detect(b"test", np.zeros((128, 128, 3), np.uint8), "onnx")
 
@@ -57,6 +60,7 @@ def test_no_potholes_cannot_erase_other_hazards(monkeypatch):
     assert result["engine"] == "onnx+vision"
     assert result["defect_present"] and result["defect_type"] == "crack"
     assert result["confidence"] == .9
+    assert result["onnx"]["status"] == "ran" and result["onnx"]["detected"] is False
 
 
 def test_vision_mode_does_not_load_onnx(monkeypatch):
@@ -64,7 +68,9 @@ def test_vision_mode_does_not_load_onnx(monkeypatch):
     def should_not_run(*args):
         pytest.fail("vision mode must bypass ONNX")
     monkeypatch.setattr(onnx_detector, "detect_potholes", should_not_run)
-    assert pipeline.detect(b"test", np.zeros((128, 128, 3), np.uint8), "vision")["engine"] == "vision"
+    result = pipeline.detect(b"test", np.zeros((128, 128, 3), np.uint8), "vision")
+    assert result["engine"] == "vision"
+    assert result["onnx"]["status"] == "not_run" and result["onnx"]["confidence"] is None
 
 
 def test_pothole_detection_keeps_vision_screen_rejection(monkeypatch):
@@ -76,3 +82,13 @@ def test_pothole_detection_keeps_vision_screen_rejection(monkeypatch):
     result = pipeline.detect(b"test", np.zeros((128, 128, 3), np.uint8), "auto")
     assert result["defect_type"] == "pothole"
     assert result["is_screen"] is True
+    assert result["onnx"]["detected"] is True and result["onnx"]["confidence"] == .95
+
+
+def test_below_threshold_score_is_reported_without_changing_verdict(monkeypatch):
+    monkeypatch.setattr(pipeline, "vision_json", lambda *args: vision_result())
+    monkeypatch.setattr(onnx_detector, "detect_potholes", lambda *args: onnx_detector.PotholeDetections([], .27))
+    result = pipeline.detect(b"test", np.zeros((128, 128, 3), np.uint8), "auto")
+    assert result["onnx"]["confidence"] == .27
+    assert result["onnx"]["detected"] is False
+    assert result["confidence"] == .9 and result["defect_type"] == "crack"

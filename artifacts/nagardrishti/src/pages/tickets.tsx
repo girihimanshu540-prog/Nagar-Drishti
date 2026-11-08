@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { OnnxSummary } from '@/components/onnx-summary';
 import { Download, Search, Map as MapIcon, Rows3 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useGetTickets, getGetTicketsQueryKey, useGetWards, getGetWardsQueryKey, useGetMyReports, getGetMyReportsQueryKey, type GetTicketsParams, type Ticket } from '@workspace/api-client-react';
@@ -93,14 +94,15 @@ export default function Tickets() {
           {mineReports.isLoading ? <SkelRows n={3} /> : mineReports.isError ? <ErrorState error={mineReports.error} onRetry={() => mineReports.refetch()} /> : !mineReports.data?.length ? <EmptyState title="You have not filed a report yet" /> : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {mineReports.data.map((r) => (
-                <div key={r.id} data-testid={`card-report-${r.id}`} className="flex gap-3 rounded-md border border-border p-2">
+                <div key={r.id} data-testid={`card-report-${r.id}`} className="flex flex-wrap gap-3 rounded-md border border-border p-2">
                   <img src={r.image_url} alt="" className="h-16 w-20 rounded-sm object-cover" />
-                  <div className="min-w-0 text-xs">
+                  <div className="min-w-0 flex-1 text-xs">
                     <div className="font-mono text-[#6EA8FF]">{r.ticket_id ?? 'No ticket'}</div>
                     <div className="uppercase tracking-wider">{r.validation_status}</div>
                     <div className="truncate text-muted-foreground">{r.reason}</div>
                     <div className="text-muted-foreground">{fmtDate(r.captured_at)}</div>
                   </div>
+                  <div className="w-full"><OnnxSummary result={r.onnx} /></div>
                 </div>
               ))}
             </div>

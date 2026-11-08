@@ -23,6 +23,7 @@ def report_json(r):
         **columns(r, "id ticket_id image_url lat lng gps_accuracy_m capture_source detector_engine validation_status"),
         "captured_at": iso(r.captured_at),
         "reason": r.rejection_reason or r.detection_json.get("reason", ""),
+        "onnx": r.detection_json.get("onnx"),
         "severity": r.detection_json.get("severity", 1),
         "bbox": r.detection_json.get("bbox", []),
     }

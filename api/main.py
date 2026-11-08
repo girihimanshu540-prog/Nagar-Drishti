@@ -274,7 +274,10 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
     try:
         jpeg, rgb = validate_capture(raw, lat, lng, accuracy, captured_at, capture_source, cfg)
     except ValueError as exc:
-        return {"accepted": False, "reason": str(exc), "decision": "REJECTED", "detector_engine": "validation"}
+        return {"accepted": False, "reason": str(exc), "decision": "REJECTED", "detector_engine": "validation",
+                "onnx": {"status": "not_run", "detected": None, "confidence": None,
+                         "confidence_threshold": config.MIN_DETECTION_CONFIDENCE,
+                         "reason": "Capture validation rejected the photo before model analysis."}}
     detection = detect(jpeg, rgb, cfg["detector_mode"])
     reason = None
     if detection["is_screen"]:
@@ -289,7 +292,8 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
                       captured_at=captured_at, capture_source=capture_source, detector_engine=detection["engine"],
                       detection_json=detection, validation_status="REJECTED", rejection_reason=reason))
         db.commit()
-        return {"accepted": False, "reason": reason, "decision": "REJECTED", "detector_engine": detection["engine"]}
+        return {"accepted": False, "reason": reason, "decision": "REJECTED", "detector_engine": detection["engine"],
+                "onnx": detection.get("onnx")}
     # Serialize dedup/creation across concurrent reports so two first reports cannot create duplicates.
     db.execute(text("SELECT pg_advisory_xact_lock(672319)"))
     candidates = db.scalars(select(Ticket).where(Ticket.status != "VERIFIED_CLOSED", Ticket.is_demo == False).with_for_update()).all()
@@ -317,7 +321,7 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
           engine=detection["engine"], reason=detection["reason"])
     db.commit()
     return {"accepted": True, "reason": detection["reason"], "decision": "ACCEPTED", "severity": ticket.severity,
-            "detector_engine": detection["engine"], "ticket": ticket_json(db, ticket)}
+            "detector_engine": detection["engine"], "ticket": ticket_json(db, ticket), "onnx": detection.get("onnx")}
 
 @app.get("/api/reports/mine")
 def my_reports(request: Request, db=Depends(database)):
