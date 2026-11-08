@@ -28,10 +28,18 @@ With `single_cls=False`, that filter selects numeric IDs; it does not remap
 other IDs into the selected class.
 
 **Why:** A saved class filter excluded the IDs used by the supplied validation
-potholes even though checkpoint and ONNX class names agreed. Matching export
-metadata did not establish correct training supervision.
+potholes even though checkpoint and ONNX class names agreed. Later
+pothole-containing training examples matched the filter, establishing a
+cross-split mapping difference rather than proof of discarded training positives.
+Matching export metadata alone did not establish consistent evaluation labels.
 
 **How to apply:** Verify the semantic training IDs with actual pothole-containing
 image/label pairs. Animal-only samples cannot establish the pothole ID. Recommend
 retraining when positive supervision was discarded or inconsistent, but distinguish
 that from a validation-only mapping error that first needs corrected evaluation.
+
+**How to interpret this project's evidence:** The audited training target and
+the selected ONNX output class agree. Correcting validation class IDs will fix
+class-aware scoring, not low confidence or missed boxes. Do not recommend
+mandatory retraining solely from this cross-split mismatch; first evaluate a
+consistently labeled, representative validation set.
