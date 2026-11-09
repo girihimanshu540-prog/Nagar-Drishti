@@ -168,3 +168,17 @@ mtime_ms = 1794129801695
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/01830f63-8a4e-4b57-833f-2525e6e312ba/c008a5dc-d65e-464a-96fb-387cfe83c15d"
 storage_version_token = "1794152689456184"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "K9fgVAufRXC5aqtxhJqyx"
+uri = "file://generated-artifacts/model-download/current.onnx"
+type = "unspecified"
+title = "Download current.onnx"
+description = "Exact model retrieved from private App Storage using api/models/pothole.json. Verified size: 12,777,248 bytes. SHA-256 matches the manifest: db91ab467e9891d6312fe9116873bb0064ba3753e09fdb090258a6809eef6da2. The app, stored model and threshold were not changed."
+logical_id = "a127c298-8154-43a0-bfa7-fc9d362b3256"
+content_hash = "sha256:db91ab467e9891d6312fe9116873bb0064ba3753e09fdb090258a6809eef6da2"
+size = 12777248
+mtime_ms = 1794121374748
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:7568e892-51e3-4492-86a8-30ac1403c107/a127c298-8154-43a0-bfa7-fc9d362b3256/d8c59ca8-3234-47bf-be45-af75916e03a2"
+storage_version_token = "1794199735958816"
+content_type = "application/octet-stream"
