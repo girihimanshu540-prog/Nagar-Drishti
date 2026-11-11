@@ -28,8 +28,8 @@ export default function Reviews() {
   const active = sel && list.some((t) => t.id === sel) ? sel : list[0]?.id;
   return (
     <div>
-      <PageHead kicker="Junior Engineer" title="Uncertain verifications" />
-      <p className="rise -mt-3 mb-5 max-w-2xl text-sm text-muted-foreground">Repairs land here when SSIM and the vision check disagree or fall between thresholds. Nothing closes until a named engineer signs off with notes.</p>
+      <PageHead kicker="Junior Engineer" title="Repairs awaiting review" />
+      <p className="rise -mt-3 mb-5 max-w-2xl text-sm text-muted-foreground">Every submitted repair lands here. Nothing closes automatically: a named engineer compares the before and after photos and approves or rejects with notes.</p>
       {q.isLoading ? <SkelRows n={6} /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : list.length === 0 ? <EmptyState title="Queue is clear" hint="No repairs are awaiting engineering judgement right now." /> : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <div className="space-y-1.5">
@@ -37,12 +37,12 @@ export default function Reviews() {
               <button key={t.id} data-testid={`button-review-item-${t.id}`} onClick={() => setSel(t.id)} className={`w-full rounded-md border p-3 text-left transition-all ${active === t.id ? 'border-amber-400/60 bg-amber-400/5 translate-x-1' : 'border-border bg-card hover:border-muted-foreground/40'}`}>
                 <div className="flex items-center gap-2"><span className="font-mono text-xs text-[#6EA8FF]">{t.id}</span>{t.is_demo && <DemoTag />}<span className="ml-auto font-mono text-[10px] text-muted-foreground">{ago(t.created_at)}</span></div>
                 <div className="truncate text-sm font-medium">{t.title}</div>
-                <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground"><span>{t.contractor_name ?? 'No contractor'}</span><SevMeter value={t.severity} /></div>
+                <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground"><span>{t.contractor_name ?? 'No contractor'}</span>{t.detector_engine === 'manual' ? <span className="font-mono text-[10px] uppercase">Not triaged</span> : <SevMeter value={t.severity} />}</div>
               </button>
             ))}
           </div>
           {active && (
-            <Panel kicker="Evidence comparison" title={list.find((t) => t.id === active)?.title} right={<Link href={`/tickets/${active}`} className="inline-flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" />Full ticket</Link>}>
+            <Panel kicker="Before and after" title={list.find((t) => t.id === active)?.title} right={<Link href={`/tickets/${active}`} className="inline-flex items-center gap-1 text-xs text-primary"><ExternalLink className="h-3 w-3" />Full ticket</Link>}>
               <ReviewItem key={active} id={active} />
             </Panel>
           )}

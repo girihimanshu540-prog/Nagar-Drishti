@@ -57,12 +57,13 @@ remap only in an isolated evaluation copy, and retain a source-to-corrected ID
 manifest with original-file integrity checks. Report results by source group as
 well as overall; a merged score can conceal a large difference between sources.
 
-Keep candidate training and evaluation separate from the current app, model and
+Keep offline candidate training and evaluation separate from the retained model and
 65% threshold until the user reviews the comparison.
 
-**Why:** The user explicitly requested that the current app and model remain
-unchanged until they review the candidate comparison.
+**Why:** The user explicitly requested that retained model weights remain
+unchanged until they review the candidate comparison. The later no-AI
+launch request explicitly permits app/workflow changes, not weight replacement.
 
 **How to apply:** Produce separate candidate weights and offline comparison
-artifacts. Do not replace the pinned active weights, change its class selection
+artifacts. Do not replace the pinned retained weights, change its class selection
 or threshold, or publish a candidate as part of preparing training instructions.

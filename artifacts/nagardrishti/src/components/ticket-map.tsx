@@ -29,11 +29,11 @@ export function TicketMap({ tickets, onSelect, height = 420, center }: { tickets
     const pts: L.LatLngExpression[] = [];
     tickets.forEach((t) => {
       if (typeof t.lat !== 'number' || typeof t.lng !== 'number') return;
-      const c = sevColor(t.severity);
+      const c = t.detector_engine === 'manual' ? '#8a8f9c' : sevColor(t.severity);
       const closed = t.status === 'VERIFIED_CLOSED';
       const mk = L.circleMarker([t.lat, t.lng], { radius: 6 + Math.min(8, t.report_count), color: closed ? '#34d399' : c, weight: 2, fillColor: c, fillOpacity: closed ? 0.15 : 0.55 });
       const esc = (s: string) => s.replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[x] as string));
-      mk.bindTooltip(`<div style="font-family:JetBrains Mono,monospace;font-size:11px"><b>${esc(t.id)}</b> ${t.is_demo ? '[DEMO]' : ''}<br/>${esc(t.title)}<br/>${STATUS_META[t.status]?.label ?? t.status} · sev ${t.severity} · P ${t.priority_score.toFixed(1)}</div>`);
+      mk.bindTooltip(`<div style="font-family:JetBrains Mono,monospace;font-size:11px"><b>${esc(t.id)}</b> ${t.is_demo ? '<span style="color:#6EA8FF">[SAMPLE DATA, not a real report]</span>' : ''}<br/>${esc(t.title)}<br/>${STATUS_META[t.status]?.label ?? t.status} · priority ${t.priority_score.toFixed(1)}<br/><span style="color:#8a8f9c">Location is approximate</span></div>`);
       mk.on('click', () => selRef.current?.(t.id));
       mk.addTo(g);
       pts.push([t.lat, t.lng]);
@@ -47,8 +47,8 @@ export function TicketMap({ tickets, onSelect, height = 420, center }: { tickets
   return (
     <div className="relative">
       <div ref={el} data-testid="map-tickets" style={{ height }} className="w-full overflow-hidden rounded-md border border-border" />
-      <div className="pointer-events-none absolute bottom-2 left-2 z-[400] flex gap-2 rounded-sm bg-[#0B0D12]/85 px-2 py-1 font-mono text-[10px] uppercase tracking-wider">
-        {[['#F0384A', 'Critical'], ['#F26B1D', 'High'], ['#F5B83D', 'Mod'], ['#4FA3FF', 'Low']].map(([c, l]) => (
+      <div className="pointer-events-none absolute bottom-2 left-2 z-[400] flex flex-wrap gap-2 rounded-sm bg-[#0B0D12]/85 px-2 py-1 font-mono text-[10px] uppercase tracking-wider">
+        {[['#F0384A', 'Critical'], ['#F26B1D', 'High'], ['#F5B83D', 'Mod'], ['#4FA3FF', 'Low'], ['#8a8f9c', 'Not triaged']].map(([c, l]) => (
           <span key={l} className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: c }} />{l}</span>
         ))}
       </div>

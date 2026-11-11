@@ -1,6 +1,6 @@
 # NagarDrishti
 
-Road-hazard reporting and accountable repair verification: **no closure without verified evidence**.
+Citizen reporting and human-reviewed repair tracking. Public-launch mode has no AI detection or automatic verification.
 
 ## Run and operate
 
@@ -35,6 +35,10 @@ Road-hazard reporting and accountable repair verification: **no closure without 
 - The user explicitly requests custom bcrypt/JWT auth, not Replit Auth.
 - Seeded demo staff accounts are intentionally public; never use them in real municipal operations.
 - Uncertain evidence must always require JE review; never relax this invariant for demos.
+- All valid repair submissions now require human JE review, not only uncertain ones.
+- Detection mode is hard-disabled in live routes and settings. Do not restore AI claims or model calls without a new explicit request.
+- Public evidence photos are private: preserve ticket-scoped authorization and native bearer image headers.
+- Demo account access is disabled by default and always disabled in production. Samples must remain labeled and excluded from live metrics.
 - The live capture UI excludes gallery pickers; metadata is not cryptographic capture attestation.
 - Never run schema creation or seed at application startup or in production build hooks.
 - See `README.md` for setup, demo credentials, verification limitations and acceptance evidence.

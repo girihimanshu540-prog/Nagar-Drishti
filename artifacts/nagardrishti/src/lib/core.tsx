@@ -5,15 +5,18 @@ export const POLL = 15000;
 
 export function useAuth() {
   const q = useGetMe({ query: { queryKey: getGetMeQueryKey(), retry: false, staleTime: 30000 } });
-  const user: User | undefined = q.isError ? undefined : q.data;
+  const user: User | undefined = q.isError ? undefined : q.data ?? undefined;
   return { user, loading: q.isLoading };
 }
 
 export function useResetSession() {
   const qc = useQueryClient();
-  return (user?: User) => {
-    qc.clear();
-    if (user) qc.setQueryData(getGetMeQueryKey(), user);
+  return async (user?: User) => {
+    await qc.cancelQueries();
+    const key = getGetMeQueryKey();
+    // Keep the observed auth query alive so all views see logout immediately.
+    qc.removeQueries({ predicate: (query) => JSON.stringify(query.queryKey) !== JSON.stringify(key) });
+    qc.setQueryData(key, user ?? null);
   };
 }
 
@@ -40,7 +43,7 @@ export const STATUS_META: Record<TicketStatus, { label: string; cls: string }> =
   ASSIGNED: { label: 'Assigned', cls: 'text-[#5B9BFF] border-[#0A6CFF]/40 bg-[#0A6CFF]/10' },
   REPAIR_SUBMITTED: { label: 'Repair submitted', cls: 'text-sky-300 border-sky-400/30 bg-sky-400/10' },
   NEEDS_JE_REVIEW: { label: 'Needs JE review', cls: 'text-amber-300 border-amber-400/40 bg-amber-400/10' },
-  VERIFIED_CLOSED: { label: 'Verified closed', cls: 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10' },
+  VERIFIED_CLOSED: { label: 'Closed', cls: 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10' },
   REOPENED: { label: 'Reopened', cls: 'text-rose-300 border-rose-400/40 bg-rose-400/10' },
 };
 

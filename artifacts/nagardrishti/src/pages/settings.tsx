@@ -29,11 +29,12 @@ function Editor() {
   if (q.isLoading || !c) return q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <SkelRows n={6} />;
   const set = (p: Partial<Configuration>) => setC({ ...c, ...p });
   const setZone = (i: number, p: Partial<TrafficZone>) => set({ traffic_zones: c.traffic_zones.map((z, j) => (j === i ? { ...z, ...p } : z)) });
-  const dirty = JSON.stringify(c) !== JSON.stringify(q.data);
+  const { detector_mode: _a, ...cmpA } = c; const { detector_mode: _b, ...cmpB } = q.data ?? c;
+  const dirty = JSON.stringify(cmpA) !== JSON.stringify(cmpB);
   const inp = 'w-full rounded-sm border border-input bg-background px-2 py-1 text-sm font-mono';
   return (
     <div className="space-y-4">
-      <Panel kicker="Evidence gates" title="Capture and verification thresholds">
+      <Panel kicker="Evidence gates" title="Capture and review thresholds">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field id="capture-max-age" label="Max capture age" unit="s" value={c.capture_max_age_s} onChange={(n) => set({ capture_max_age_s: n })} hint="Older frames are rejected as non-live." />
           <Field id="gps-max-accuracy" label="GPS accuracy limit" unit="m" value={c.gps_max_accuracy_m} onChange={(n) => set({ gps_max_accuracy_m: n })} hint="Fixes coarser than this are refused." />
@@ -41,8 +42,9 @@ function Editor() {
           <Field id="repair-radius" label="Repair radius" unit="m" value={c.repair_radius_m} onChange={(n) => set({ repair_radius_m: n })} hint="Repair photo must be taken this close." />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Detector mode</span>
-          {(['auto', 'onnx', 'vision'] as const).map((d) => <button key={d} data-testid={`button-detector-${d}`} onClick={() => set({ detector_mode: d })} className={`rounded-sm border px-3 py-1 font-mono text-xs uppercase transition-colors ${c.detector_mode === d ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground'}`}>{d}</button>)}
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Automated detection</span>
+          <span data-testid="text-detector-disabled" className="rounded-sm border border-border px-3 py-1 font-mono text-xs uppercase text-muted-foreground">Disabled</span>
+          <span className="text-xs text-muted-foreground">Permanently off. Reports pass photo and GPS checks only; every repair goes to engineer review.</span>
         </div>
       </Panel>
       <Panel kicker="Configured traffic index" title="Traffic zones" right={<button data-testid="button-add-zone" onClick={() => set({ traffic_zones: [...c.traffic_zones, { id: Math.max(0, ...c.traffic_zones.map((z) => z.id)) + 1, name: 'New zone', ward_id: wards.data?.[0]?.id ?? 1, center_lat: wards.data?.[0]?.center_lat ?? 18.5204, center_lng: wards.data?.[0]?.center_lng ?? 73.8567, radius_m: 300, density: 0.5 }] })} className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 text-xs hover:border-primary"><Plus className="h-3 w-3" />Add zone</button>}>
@@ -70,7 +72,7 @@ function Editor() {
       <div className="sticky bottom-4 flex items-center justify-end gap-3">
         {m.isError && <span className="text-sm text-rose-300">{errMsg(m.error)}</span>}
         {dirty && <button data-testid="button-reset-config" onClick={() => q.data && setC(structuredClone(q.data))} className="rounded-sm px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Discard</button>}
-        <button data-testid="button-save-config" disabled={!dirty || m.isPending} onClick={() => m.mutate({ data: c })} className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95 disabled:opacity-40"><Save className="h-4 w-4" />{m.isPending ? 'Saving' : 'Save thresholds'}</button>
+        <button data-testid="button-save-config" disabled={!dirty || m.isPending} onClick={() => m.mutate({ data: { ...c, detector_mode: 'disabled' } })} className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform active:scale-95 disabled:opacity-40"><Save className="h-4 w-4" />{m.isPending ? 'Saving' : 'Save thresholds'}</button>
       </div>
     </div>
   );

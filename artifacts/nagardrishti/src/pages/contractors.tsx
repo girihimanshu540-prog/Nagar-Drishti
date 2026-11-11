@@ -9,7 +9,7 @@ export default function Contractors() {
   const q = useGetContractors({ query: { queryKey: getGetContractorsQueryKey(), refetchInterval: POLL } });
   const [key, setKey] = useState<keyof Contractor>('verification_rate');
   const list = [...(q.data ?? [])].sort((a, b) => Number(b[key]) - Number(a[key]));
-  const cols: [keyof Contractor, string][] = [['assigned', 'Assigned'], ['verified', 'Verified'], ['rejected', 'Rejected'], ['pending_review', 'Pending JE'], ['verification_rate', 'Verify rate'], ['avg_close_hours', 'Avg close h']];
+  const cols: [keyof Contractor, string][] = [['assigned', 'Assigned'], ['verified', 'Approved'], ['rejected', 'Rejected'], ['pending_review', 'Pending JE'], ['verification_rate', 'Approval rate'], ['avg_close_hours', 'Avg close h']];
   return (
     <div>
       <PageHead kicker="Accountability" title="Contractor scorecard" />
@@ -45,7 +45,7 @@ export default function Contractors() {
           </div>
         )}
       </Panel>
-      <p className="mt-3 text-xs text-muted-foreground">Rejected counts repairs that failed evidence verification or JE review. Every figure is computed by the server from the audit record.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Approved and rejected counts reflect junior engineer review decisions. Sample records are demonstration data, not real contractor work. Figures are computed by the server from the audit record.</p>
     </div>
   );
 }

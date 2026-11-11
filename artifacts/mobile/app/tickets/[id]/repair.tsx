@@ -19,7 +19,7 @@ export default function RepairScreen() {
   if (query.isError || !query.data) return <ScreenState error={query.error || new Error('Ticket not found.')} retry={() => void query.refetch()} />;
   const ticket = query.data;
   if (user?.role !== 'contractor' || ticket.assigned_contractor_id !== user.id) return <ScreenState title="Not assigned to you" message="Only the assigned contractor can submit repair evidence." />;
-  if (ticket.is_demo) return <ScreenState title="Synthetic demo evidence" message="Real repairs cannot be verified against generated demo photos. Start with a real citizen report and have staff assign it." />;
+  if (ticket.is_demo) return <ScreenState title="Sample data" message="This is a demonstration record, not a real report. Repairs cannot be submitted against it." />;
   if (!['ASSIGNED', 'REOPENED'].includes(ticket.status)) return <ScreenState title="Repair submission unavailable" message={`Ticket status is ${ticket.status.replaceAll('_', ' ').toLowerCase()}. Refresh the ticket to see the latest decision.`} />;
   return <LiveCapture repair target={{ lat: ticket.lat, lng: ticket.lng }} submit={async data => {
     const result = await mutation.mutateAsync({ id, data });

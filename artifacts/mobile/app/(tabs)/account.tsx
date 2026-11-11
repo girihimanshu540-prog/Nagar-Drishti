@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Linking, ScrollView, Text, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/providers/AuthProvider';
-import { apiOrigin } from '@/lib/config';
+import { apiOrigin, privacyUrl } from '@/lib/config';
 import { Button, Header, Notice, surface, useBottomSpace } from '@/components/ScreenState';
 import { fonts } from '@/constants/theme';
 
@@ -23,7 +23,10 @@ export default function AccountScreen() {
         <Text selectable style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 12 }}>{apiOrigin}</Text>
         <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 21 }}>Changes are saved to the existing FastAPI service. Tickets refresh every 15 seconds while the app is active. Staff review and assignment remain on the web.</Text>
       </View>
+      <Notice>NagarDrishti is not an official municipal service and is pending operator authorisation. Reports are unverified until reviewed, repairs close only after engineer approval, and no repair time is guaranteed. Not for emergencies.</Notice>
       {error ? <Notice danger>{error}</Notice> : null}
+      {privacyUrl ? <Button title="Privacy notice" testID="open-privacy" secondary icon="shield"
+        onPress={() => { void Linking.openURL(privacyUrl).catch(() => setError('Could not open the privacy notice.')); }} /> : null}
       <Button title="Open web dashboard" testID="open-web" secondary icon="external-link"
         onPress={() => { void Linking.openURL(apiOrigin).catch(() => setError('Could not open the browser.')); }} />
       <Button title="Sign out" testID="sign-out" icon="log-out" onPress={() => void auth.signOut()} />

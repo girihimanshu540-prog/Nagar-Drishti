@@ -19,5 +19,13 @@ catch (error) { configurationError = error instanceof Error ? error.message : 'I
 export { apiOrigin, configurationError };
 
 export function evidenceUrl(path: string): string {
-  return path ? new URL(path, `${apiOrigin}/`).toString() : '';
+  if (!path || !apiOrigin) return '';
+  try { return new URL(path, `${apiOrigin}/`).toString(); } catch { return ''; }
 }
+/** True only when the URL is on the configured API origin, so credentials never go to third-party hosts. */
+export function isApiUrl(url: string): boolean {
+  if (!url || !apiOrigin) return false;
+  try { return new URL(url).origin === apiOrigin; } catch { return false; }
+}
+/** Public privacy notice served by the web app on the same origin. */
+export const privacyUrl = apiOrigin ? `${apiOrigin}/privacy` : '';

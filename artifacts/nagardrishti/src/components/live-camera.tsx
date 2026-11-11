@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'wouter';
 import { Camera, CameraOff, Crosshair, RefreshCw, Send, X } from 'lucide-react';
 import type { CaptureInput } from '@workspace/api-client-react';
 
@@ -106,7 +107,7 @@ export function LiveCamera({ onSubmit, submitting, submitLabel, ticketLocation }
           <div className="absolute inset-0 grid place-items-center p-6 text-center">
             <div className="space-y-3">
               <CameraOff className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Evidence is captured live only. Gallery uploads are not accepted.</p>
+              <p className="text-sm text-muted-foreground">Photos are taken live only. Gallery uploads are not accepted. Your photo and precise GPS are sent when you submit.</p>
               <button data-testid="button-start-camera" onClick={start} disabled={state === 'starting'} className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform active:scale-95 disabled:opacity-60">
                 <Camera className="h-4 w-4" />{state === 'starting' ? 'Starting camera' : 'Start live camera'}
               </button>
@@ -114,6 +115,7 @@ export function LiveCamera({ onSubmit, submitting, submitLabel, ticketLocation }
           </div>
         )}
       </div>
+      <p data-testid="text-capture-consent" className="text-xs leading-relaxed text-muted-foreground">Frame the road surface only. Do not photograph faces, number plates or private property. Photos and precise location are visible only to you and authorised staff; the public tracker shows a general location. <Link href="/privacy" className="text-primary underline-offset-2 hover:underline">Privacy notice</Link></p>
       {err && <div data-testid="text-camera-error" className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-rose-200">{err}</div>}
       {shot && (
         <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
@@ -124,7 +126,7 @@ export function LiveCamera({ onSubmit, submitting, submitLabel, ticketLocation }
       )}
       <div className="flex flex-wrap gap-2">
         {state === 'live' && <button data-testid="button-capture" onClick={capture} className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform active:scale-95"><Camera className="h-4 w-4" />Capture frame</button>}
-        {shot && <button data-testid="button-submit-capture" disabled={submitting} onClick={() => onSubmit(shot.input)} className="inline-flex items-center gap-2 rounded-sm bg-[#0A6CFF] px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-60"><Send className="h-4 w-4" />{submitting ? 'Uploading and analysing' : submitLabel}</button>}
+        {shot && <button data-testid="button-submit-capture" disabled={submitting} onClick={() => onSubmit(shot.input)} className="inline-flex items-center gap-2 rounded-sm bg-[#0A6CFF] px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-60"><Send className="h-4 w-4" />{submitting ? 'Uploading' : submitLabel}</button>}
         {shot && <button data-testid="button-retake" disabled={submitting} onClick={retake} className="inline-flex items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm hover:border-primary"><RefreshCw className="h-4 w-4" />Retake</button>}
         {(state === 'live' || shot) && <button data-testid="button-cancel-camera" disabled={submitting} onClick={cancel} className="inline-flex items-center gap-2 rounded-sm px-3 py-2 text-sm text-muted-foreground hover:text-foreground"><X className="h-4 w-4" />Cancel</button>}
       </div>

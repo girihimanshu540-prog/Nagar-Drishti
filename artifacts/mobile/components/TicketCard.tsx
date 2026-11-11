@@ -6,7 +6,8 @@ import { useColors } from '@/hooks/useColors';
 import { fonts } from '@/constants/theme';
 import { surface } from './ScreenState';
 
-export const statusLabel = (value: string) => value.toLowerCase().replaceAll('_', ' ');
+const LABELS: Record<string, string> = { VERIFIED_CLOSED: 'closed', NEEDS_JE_REVIEW: 'awaiting engineer review', REOPENED: 'rejected, reopened' };
+export const statusLabel = (value: string) => LABELS[value] ?? value.toLowerCase().replaceAll('_', ' ');
 export function StatusBadge({ status }: { status: string }) {
   const c = useColors();
   const color = status === 'VERIFIED_CLOSED' ? c.success : status === 'NEEDS_JE_REVIEW' ? c.warning :
@@ -28,12 +29,12 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 5 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={{ flexDirection: 'row', gap: 3 }}>
-          {[1, 2, 3, 4, 5].map(n => <View key={n} style={{ width: 6, height: 14, borderRadius: 1, backgroundColor: n <= ticket.severity ? c.primary : c.border }} />)}
+          {ticket.detector_engine === 'manual' ? null : [1, 2, 3, 4, 5].map(n => <View key={n} style={{ width: 6, height: 14, borderRadius: 1, backgroundColor: n <= ticket.severity ? c.primary : c.border }} />)}
         </View>
-        <Text style={{ fontFamily: fonts.mono, color: c.mutedForeground, fontSize: 10 }}>SEVERITY {ticket.severity}/5</Text>
+        <Text style={{ fontFamily: fonts.mono, color: c.mutedForeground, fontSize: 10 }}>{ticket.detector_engine === 'manual' ? 'NOT TRIAGED' : `LEGACY SEVERITY ${ticket.severity}/5`}</Text>
       </View>
       <Feather name="arrow-up-right" color={c.foreground} size={18} />
     </View>
-    {ticket.is_demo ? <Text style={{ color: c.warning, fontFamily: fonts.regular, fontSize: 11 }}>Synthetic demo evidence · no live repair submission</Text> : null}
+    {ticket.is_demo ? <Text testID={`demo-${ticket.id}`} style={{ color: c.warning, fontFamily: fonts.mono, fontSize: 11 }}>SAMPLE DATA · not a real report or real repair</Text> : null}
   </Pressable>;
 }

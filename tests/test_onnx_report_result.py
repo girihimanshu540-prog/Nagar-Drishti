@@ -1,32 +1,28 @@
-"""Reuse isolated API fixtures; never submit synthetic photos to the live API."""
-from tests.test_api import isolated, login, report
-import api.main as routes
+"""Launch mode returns no model diagnostics, even for historical report records."""
+from test_api import isolated, login, report
+from sqlalchemy import select
+from api.models import Report
 
 
-def test_result_and_saved_report_include_separate_model_confidence(isolated, monkeypatch):
+def test_live_and_saved_report_have_no_model_result(isolated):
     client, db, photo = isolated
     login(client, "citizen")
-    original = routes.detect
-    diagnostics = {"status": "ran", "detected": False, "confidence": .27,
-                   "confidence_threshold": .65, "reason": "Below threshold."}
-    monkeypatch.setattr(routes, "detect", lambda *args: {**original(*args), "onnx": diagnostics})
     result = report(client, photo).json()
     assert result["accepted"] and result["ticket"]
-    assert result["onnx"] == diagnostics
+    assert result["onnx"] is None and result["detector_engine"] == "manual"
     stored = client.get("/api/reports/mine").json()
-    assert next(row for row in stored if row["ticket_id"] == result["ticket"]["id"])["onnx"] == diagnostics
+    assert next(row for row in stored if row["ticket_id"] == result["ticket"]["id"])["onnx"] is None
+    historical = db.scalar(select(Report).where(Report.ticket_id == result["ticket"]["id"]))
+    historical.detection_json = {**historical.detection_json, "onnx": {
+        "status": "ran", "detected": True, "confidence": .99,
+        "confidence_threshold": .65, "reason": "Historical fixture, not a launch result."}}
+    db.flush()
+    assert client.get("/api/reports/mine").json()[0]["onnx"] is None
 
 
-def test_rejected_and_invalid_captures_show_correct_model_run_state(isolated, monkeypatch):
+def test_invalid_capture_has_no_inference_or_ticket(isolated):
     client, db, photo = isolated
     login(client, "citizen")
     invalid = report(client, photo, capture_source="gallery").json()
-    assert invalid["onnx"]["status"] == "not_run"
-    assert invalid["onnx"]["detected"] is None and invalid["onnx"]["confidence"] is None
-    original = routes.detect
-    diagnostics = {"status": "ran", "detected": False, "confidence": .12,
-                   "confidence_threshold": .65, "reason": "Below threshold."}
-    monkeypatch.setattr(routes, "detect", lambda *args: {**original(*args), "defect_present": False, "onnx": diagnostics})
-    rejected = report(client, photo).json()
-    assert not rejected["accepted"] and "ticket" not in rejected
-    assert rejected["onnx"] == diagnostics
+    assert invalid["onnx"] is None
+    assert not invalid["accepted"] and "ticket" not in invalid

@@ -6,9 +6,15 @@ import jwt
 from fastapi import Request, HTTPException, Response
 from sqlalchemy import select
 from .models import User, utcnow
+from . import config
 
 SECRET = os.environ["SESSION_SECRET"]
+if config.PRODUCTION and len(SECRET.encode()) < 32:
+    raise RuntimeError("Production SESSION_SECRET must contain at least 32 bytes of high-entropy secret material.")
 COOKIE = "nagardrishti_session"
+
+def account_enabled(user):
+    return config.ALLOW_DEMO_ACCOUNTS or not user.email.lower().endswith("@nagardrishti.demo")
 
 def fail(status, code, message):
     raise HTTPException(status, detail={"code": code, "message": message})
@@ -29,7 +35,7 @@ def authenticate(request: Request, db, roles=None, optional=False):
     try:
         claims = jwt.decode(token or "", SECRET, algorithms=["HS256"], issuer="nagardrishti")
         user = db.get(User, int(claims["sub"]))
-        if not user:
+        if not user or not account_enabled(user):
             raise ValueError("Unknown user")
     except (jwt.PyJWTError, ValueError, KeyError):
         if optional:

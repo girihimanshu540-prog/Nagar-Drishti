@@ -17,11 +17,11 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text, func
 from . import config
-from .auth import authenticate, fail, hash_password, user_json, session_response, COOKIE
+from .auth import authenticate, fail, hash_password, user_json, session_response, account_enabled, COOKIE
 from .models import Session, Ward, User, Ticket, Report, Repair, Event, TrafficZone, Settings, utcnow
 from .views import ticket_json, detail_json, report_json, event_json, columns
 from .storage import save_image, load_image
-from .ai.pipeline import validate_capture, detect, haversine, priority, image_metrics, vision_json, Comparison, decide_repair, AnalysisUnavailable
+from .ai.pipeline import validate_capture, haversine, priority, AnalysisUnavailable
 
 log = logging.getLogger("nagardrishti")
 app = FastAPI(title="NagarDrishti API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -39,12 +39,15 @@ def root_docs():
 async def security(request, call_next):
     origin = request.headers.get("origin")
     # Native bearer clients do not use browser cookies. Cookie mutations require same origin.
-    if request.method in ("POST", "PUT", "DELETE", "PATCH") and origin and not request.headers.get("authorization"):
-        if urlparse(origin).netloc != request.headers.get("host") and origin not in origins:
+    bearer = request.headers.get("authorization", "").lower().startswith("bearer ")
+    if request.method in ("POST", "PUT", "DELETE", "PATCH") and not bearer:
+        if (origin and urlparse(origin).netloc != request.headers.get("host") and origin not in origins) or (not origin and request.headers.get("sec-fetch-site") == "cross-site"):
             return JSONResponse({"error": {"code": "ORIGIN_FORBIDDEN", "message": "Cross-site requests are not allowed."}}, 403)
     ip = request.client.host if request.client else "unknown"
     key = (ip, "auth" if "/auth/" in request.url.path else "read" if request.method == "GET" else "write")
     now = time.monotonic()
+    if key not in hits and len(hits) >= 10000:
+        hits.pop(next(iter(hits)))
     queue = hits[key]
     while queue and queue[0] < now-60:
         queue.popleft()
@@ -57,8 +60,9 @@ async def security(request, call_next):
         return JSONResponse({"error": {"code": "IMAGE_TOO_LARGE", "message": "Images must not exceed 8 MB."}}, 413)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    if not request.url.path.startswith("/api/evidence/"):
-        response.headers["Cache-Control"] = "no-store"
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
     return response
 
 @app.exception_handler(HTTPException)
@@ -90,7 +94,7 @@ def database():
 
 def settings(db):
     row = db.get(Settings, 1)
-    return {**config.DEFAULTS, **(row.values if row else {})}
+    return {**config.DEFAULTS, **(row.values if row else {}), "detector_mode": "disabled"}
 
 def event(db, ticket, actor, kind, description, **payload):
     db.add(Event(ticket_id=ticket.id, actor_id=actor.id if actor else None,
@@ -139,18 +143,24 @@ def login(data: Credentials, response: Response, db=Depends(database)):
         valid = bcrypt.checkpw(data.password.encode(), hashed.encode())
     except ValueError:
         valid = False
-    if not user or not valid:
+    if not user or not valid or not account_enabled(user):
         fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.")
     return session_response(user, response)
 
 @app.post("/api/auth/register")
 def register(data: Registration, response: Response, db=Depends(database)):
     email = data.email.lower().strip()
+    if email.endswith("@nagardrishti.demo"):
+        fail(422, "RESERVED_EMAIL", "Use your own email address, not a demonstration account.")
+    if len(data.name.strip()) < 2:
+        fail(422, "INVALID_NAME", "Enter a name with at least two non-space characters.")
     if "@" not in email or "." not in email.rsplit("@", 1)[1]:
         fail(422, "INVALID_EMAIL", "Enter a valid email address.")
     if db.scalar(select(User).where(User.email == email)):
         fail(409, "EMAIL_EXISTS", "An account with that email already exists.")
     ward = db.scalar(select(Ward).order_by(Ward.id).limit(1))
+    if not ward:
+        fail(503, "SERVICE_NOT_CONFIGURED", "Citizen registration is not yet configured. Please try again later.")
     user = User(name=data.name.strip(), email=email, password_hash=hash_password(data.password), role="citizen", ward_id=ward.id)
     db.add(user)
     db.commit()
@@ -194,14 +204,14 @@ def tickets(request: Request, status: str | None = None, ward: int | None = None
         elif user.role == "je":
             query = query.where(Ticket.ward_id == user.ward_id)
     ordering = Ticket.created_at.desc() if sort in ("recent", "newest", "created_at") else Ticket.severity.desc() if sort == "severity" else Ticket.priority_score.desc()
-    return [ticket_json(db, t) for t in db.scalars(query.order_by(ordering, Ticket.id).limit(500))]
+    return [ticket_json(db, t, public=not mine, viewer=user if mine else None) for t in db.scalars(query.order_by(ordering, Ticket.id).limit(500))]
 
 @app.get("/api/tickets/{id}")
 def ticket_detail(id: str, request: Request, db=Depends(database)):
     user = authenticate(request, db)
     ticket = get_ticket(db, id)
     ticket_access(db, user, ticket)
-    return detail_json(db, ticket)
+    return detail_json(db, ticket, viewer=user)
 
 @app.get("/api/public/tickets/{id}")
 def public_detail(id: str, db=Depends(database)):
@@ -218,7 +228,7 @@ def assign(id: str, data: Assignment, request: Request, db=Depends(database)):
     if ticket.status not in ("OPEN", "REOPENED", "ASSIGNED"):
         fail(409, "INVALID_STATE", "Only open, reopened or assigned tickets can be assigned.")
     contractor = db.get(User, data.contractor_id)
-    if not contractor or contractor.role != "contractor" or contractor.ward_id != ticket.ward_id:
+    if not contractor or not account_enabled(contractor) or contractor.role != "contractor" or contractor.ward_id != ticket.ward_id:
         fail(422, "INVALID_CONTRACTOR", "Select a contractor in the ticket's ward.")
     ticket.status = "ASSIGNED"
     ticket.assigned_contractor_id = contractor.id
@@ -237,6 +247,8 @@ def review(id: str, data: Review, request: Request, db=Depends(database)):
     ticket_access(db, user, ticket)
     if data.decision not in ("approve", "reject"):
         fail(422, "INVALID_DECISION", "Choose approve or reject.")
+    if len(data.notes.strip()) < 10:
+        fail(422, "INVALID_NOTES", "Explain the engineer decision in at least ten non-space characters.")
     if ticket.status != "NEEDS_JE_REVIEW":
         fail(409, "INVALID_STATE", "Only tickets awaiting a Junior Engineer review can be reviewed.")
     repair = db.scalar(select(Repair).where(Repair.ticket_id == id).order_by(Repair.id.desc()).limit(1))
@@ -274,26 +286,13 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
     try:
         jpeg, rgb = validate_capture(raw, lat, lng, accuracy, captured_at, capture_source, cfg)
     except ValueError as exc:
-        return {"accepted": False, "reason": str(exc), "decision": "REJECTED", "detector_engine": "validation",
-                "onnx": {"status": "not_run", "detected": None, "confidence": None,
-                         "confidence_threshold": config.MIN_DETECTION_CONFIDENCE,
-                         "reason": "Capture validation rejected the photo before model analysis."}}
-    detection = detect(jpeg, rgb, cfg["detector_mode"])
-    reason = None
-    if detection["is_screen"]:
-        reason = "This appears to be a photograph of a screen. Photograph the road directly with the live camera."
-    elif not detection["defect_present"]:
-        reason = "No road defect could be identified. " + detection["reason"]
-    elif detection["confidence"] < config.MIN_DETECTION_CONFIDENCE:
-        reason = "Road-defect evidence is uncertain. Retake a clear photograph. " + detection["reason"]
+        return {"accepted": False, "reason": str(exc), "decision": "REJECTED", "detector_engine": "validation", "onnx": None}
+    # Receiving evidence is not a determination that a pothole exists.
+    # No ONNX, vision fallback, SSIM or automatic scene assessment runs here.
+    detection = {"engine": "manual", "defect_type": "road_hazard_report", "severity": 1,
+                 "bbox": [], "onnx": None,
+                 "reason": "Report received for human review. No AI pothole detection or verification was performed."}
     url = save_image(jpeg)
-    if reason:
-        db.add(Report(ticket_id=None, citizen_id=user.id, image_url=url, lat=lat, lng=lng, gps_accuracy_m=accuracy,
-                      captured_at=captured_at, capture_source=capture_source, detector_engine=detection["engine"],
-                      detection_json=detection, validation_status="REJECTED", rejection_reason=reason))
-        db.commit()
-        return {"accepted": False, "reason": reason, "decision": "REJECTED", "detector_engine": detection["engine"],
-                "onnx": detection.get("onnx")}
     # Serialize dedup/creation across concurrent reports so two first reports cannot create duplicates.
     db.execute(text("SELECT pg_advisory_xact_lock(672319)"))
     candidates = db.scalars(select(Ticket).where(Ticket.status != "VERIFIED_CLOSED", Ticket.is_demo == False).with_for_update()).all()
@@ -305,7 +304,10 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
         ticket.priority_score = priority(ticket.severity, ticket.traffic_density)
         kind = "REPORT_GROUPED"
     else:
-        ward = min(db.scalars(select(Ward)).all(), key=lambda w: haversine(lat, lng, w.center_lat, w.center_lng))
+        available_wards = db.scalars(select(Ward)).all()
+        if not available_wards:
+            fail(503, "SERVICE_NOT_CONFIGURED", "Road reporting is not yet configured.")
+        ward = min(available_wards, key=lambda w: haversine(lat, lng, w.center_lat, w.center_lng))
         density = traffic_at(db, ward.id, lat, lng)
         ticket = Ticket(id="ND-" + uuid.uuid4().hex[:8].upper(), title=detection["defect_type"].replace("_", " ").title(),
                         location=f"Near {lat:.5f}, {lng:.5f}", lat=lat, lng=lng, ward_id=ward.id, severity=detection["severity"],
@@ -317,7 +319,7 @@ def submit_report(request: Request, image: UploadFile = File(...), lat: float = 
     db.add(Report(ticket_id=ticket.id, citizen_id=user.id, image_url=url, lat=lat, lng=lng, gps_accuracy_m=accuracy,
                   captured_at=captured_at, capture_source=capture_source, detector_engine=detection["engine"],
                   detection_json=detection, validation_status="ACCEPTED"))
-    event(db, ticket, user, kind, "Live-camera report accepted and grouped with existing ticket." if kind == "REPORT_GROUPED" else "Live-camera road defect accepted; ticket opened.",
+    event(db, ticket, user, kind, "Citizen report linked to an existing ticket; no AI verification." if kind == "REPORT_GROUPED" else "Citizen road-hazard report received; ticket opened for human review.",
           engine=detection["engine"], reason=detection["reason"])
     db.commit()
     return {"accepted": True, "reason": detection["reason"], "decision": "ACCEPTED", "severity": ticket.severity,
@@ -348,21 +350,10 @@ def submit_repair(id: str, request: Request, image: UploadFile = File(...), lat:
         event(db, ticket, user, "REPAIR_REJECTED", "Repair capture rejected: " + str(exc))
         db.commit()
         return {"accepted": False, "decision": "REJECTED", "reason": str(exc), "detector_engine": "validation", "ticket": ticket_json(db, ticket)}
-    before = load_image(ticket.before_image_url)
-    report = db.scalar(select(Report).where(Report.ticket_id == id, Report.validation_status == "ACCEPTED").order_by(Report.id).limit(1))
-    metrics = image_metrics(before, jpeg, report.detection_json.get("bbox", []) if report else [])
-    after = detect(jpeg, rgb, cfg["detector_mode"])
-    if after["is_screen"]:
-        decision, reason = "REJECTED", "Screen photography is not permitted. Capture the repaired road directly."
-        comparison = None
-    else:
-        try:
-            comparison = vision_json('Compare BEFORE then AFTER road inspection photos. Determine same physical spot from permanent surroundings, not just asphalt. Be conservative. Return JSON {same_place:boolean,same_place_confidence:0-1,verdict:"repaired"|"defect_remaining"|"uncertain",reason:string}. Only say repaired if the original defect has been removed and the road surface is repaired.', [before, jpeg], Comparison)
-            decision, reason = decide_repair(metrics, after, comparison)
-            reason += " " + comparison.reason
-        except AnalysisUnavailable:
-            comparison = None
-            decision, reason = "NEEDS_JE_REVIEW", "Independent comparison was unavailable. Automatic closure is blocked; a Junior Engineer must inspect the evidence."
+    metrics = {"ssim_global": None, "ssim_defect_region": None, "same_location_score": None}
+    after = {"engine": "manual", "onnx": None}
+    decision = "NEEDS_JE_REVIEW"
+    reason = "Repair evidence received. A Junior Engineer must inspect it and approve or reject the repair. No automated detection or verification was performed."
     url = save_image(jpeg)
     # Re-lock and check after slow image analysis: prevent stale verification from overriding a concurrent action.
     db.refresh(ticket, with_for_update=True)
@@ -370,7 +361,7 @@ def submit_repair(id: str, request: Request, image: UploadFile = File(...), lat:
         fail(409, "TICKET_CHANGED", "The ticket changed during analysis. Reload before submitting again.")
     repair = Repair(ticket_id=id, contractor_id=user.id, image_url=url, lat=lat, lng=lng, captured_at=captured_at,
                     **metrics, after_detections_json=after,
-                    vision_verdict=comparison.verdict if comparison else "uncertain",
+                    vision_verdict="not_run",
                     vision_reason=reason, decision=decision)
     db.add(repair)
     event(db, ticket, user, "REPAIR_SUBMITTED", "New live-camera repair evidence submitted.")
@@ -385,44 +376,57 @@ def submit_repair(id: str, request: Request, image: UploadFile = File(...), lat:
 @app.get("/api/evidence/{key}")
 def evidence(key: str, request: Request, db=Depends(database)):
     url = f"/api/evidence/{key}"
-    # Only committed evidence records may be served, never arbitrary storage objects.
-    known = db.scalar(select(Report.id).where(Report.image_url == url).limit(1)) or db.scalar(select(Repair.id).where(Repair.image_url == url).limit(1))
-    if not known:
+    user = authenticate(request, db)
+    report = db.scalar(select(Report).where(Report.image_url == url).limit(1))
+    repair = db.scalar(select(Repair).where(Repair.image_url == url).limit(1)) if not report else None
+    record = report or repair
+    if not record:
         fail(404, "EVIDENCE_NOT_FOUND", "Evidence was not found.")
-    return Response(load_image(url), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
+    if report and user.role == "citizen" and report.citizen_id != user.id:
+        fail(403, "EVIDENCE_FORBIDDEN", "Another citizen's report photo is private.")
+    if record.ticket_id:
+        ticket_access(db, user, get_ticket(db, record.ticket_id))
+    elif not report or (report.citizen_id != user.id and user.role != "commissioner"):
+        fail(403, "EVIDENCE_FORBIDDEN", "This evidence is private.")
+    return Response(load_image(url), media_type="image/jpeg", headers={"Cache-Control": "private, no-store"})
 
 @app.get("/api/stats")
 def stats(ward: int | None = None, db=Depends(database)):
-    query = select(Ticket)
+    query = select(Ticket).where(Ticket.is_demo == False)
     if ward:
         query = query.where(Ticket.ward_id == ward)
     ts = db.scalars(query).all()
     counts = {s: sum(t.status == s for t in ts) for s in config.STATUSES}
-    closed = [t for t in ts if t.closed_at]
     ids = [t.id for t in ts]
-    prevented = db.scalar(select(func.count()).select_from(Repair).where(Repair.ticket_id.in_(ids), Repair.decision.in_(["REJECTED", "REOPENED", "NEEDS_JE_REVIEW"]))) or 0
+    approved_ids = set(db.scalars(select(Repair.ticket_id).where(Repair.ticket_id.in_(ids), Repair.je_decision == "approve")))
+    closed = [t for t in ts if t.closed_at and t.status == "VERIFIED_CLOSED" and t.id in approved_ids]
+    prevented = db.scalar(select(func.count()).select_from(Repair).where(Repair.ticket_id.in_(ids), Repair.je_decision == "reject")) or 0
     per_ward = [{"ward_id": w.id, "name": w.name, "total": sum(t.ward_id == w.id for t in ts),
                  "open": sum(t.ward_id == w.id and t.status != "VERIFIED_CLOSED" for t in ts),
                  "closed": sum(t.ward_id == w.id and t.status == "VERIFIED_CLOSED" for t in ts)}
                 for w in db.scalars(select(Ward).order_by(Ward.id))]
-    return {"total": len(ts), "open": len(ts)-counts["VERIFIED_CLOSED"], "verified_closures": counts["VERIFIED_CLOSED"],
+    return {"total": len(ts), "open": len(ts)-counts["VERIFIED_CLOSED"], "verified_closures": len(closed),
             "je_queue": counts["NEEDS_JE_REVIEW"], "false_closures_prevented": prevented,
             "avg_time_to_close_hours": round(sum((t.closed_at-t.created_at).total_seconds()/3600 for t in closed)/len(closed), 1) if closed else 0,
             "reports_total": sum(t.report_count for t in ts), "per_ward": per_ward, "status_counts": counts}
 
 @app.get("/api/activity")
 def activity(db=Depends(database)):
-    return [event_json(db, e, public=True) for e in db.scalars(select(Event).order_by(Event.at.desc()).limit(15))]
+    return [event_json(db, e, public=True) for e in db.scalars(select(Event).join(Ticket, Event.ticket_id == Ticket.id).where(Ticket.is_demo == False).order_by(Event.at.desc()).limit(15))]
 
 @app.get("/api/contractors/scorecard")
-def contractors(db=Depends(database)):
+def contractors(request: Request, db=Depends(database)):
+    authenticate(request, db, ["je", "commissioner"])
     result = []
     for user in db.scalars(select(User).where(User.role == "contractor").order_by(User.id)):
-        ts = db.scalars(select(Ticket).where(Ticket.assigned_contractor_id == user.id)).all()
-        repairs = db.scalars(select(Repair).where(Repair.contractor_id == user.id)).all()
-        closed = [t for t in ts if t.closed_at]
+        if not account_enabled(user):
+            continue
+        ts = db.scalars(select(Ticket).where(Ticket.assigned_contractor_id == user.id, Ticket.is_demo == False)).all()
+        repairs = db.scalars(select(Repair).join(Ticket, Repair.ticket_id == Ticket.id).where(Repair.contractor_id == user.id, Ticket.is_demo == False)).all()
+        approved_ids = {r.ticket_id for r in repairs if r.je_decision == "approve"}
+        closed = [t for t in ts if t.closed_at and t.status == "VERIFIED_CLOSED" and t.id in approved_ids]
         verified = len(closed)
-        rejected = sum(r.decision in ("REJECTED", "REOPENED") or r.je_decision == "reject" for r in repairs)
+        rejected = sum(r.je_decision == "reject" for r in repairs)
         result.append({"id": user.id, "name": user.company or user.name, "company": user.company,
                        "assigned": sum(t.status != "VERIFIED_CLOSED" for t in ts),
                        "verified": verified, "rejected": rejected,
@@ -460,8 +464,8 @@ class ConfigurationInput(BaseModel):
 @app.put("/api/config")
 def update_config(data: ConfigurationInput, request: Request, db=Depends(database)):
     user = authenticate(request, db, ["commissioner"])
-    if data.detector_mode not in ("auto", "onnx", "vision"):
-        fail(422, "INVALID_MODE", "Choose auto, onnx or vision.")
+    if data.detector_mode != "disabled":
+        fail(422, "INVALID_MODE", "Automated detection is disabled for public launch and cannot be enabled in settings.")
     row = db.get(Settings, 1)
     values = data.model_dump(exclude={"traffic_zones"})
     if row:

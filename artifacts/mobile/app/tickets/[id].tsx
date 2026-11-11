@@ -5,7 +5,8 @@ import { useGetTicket } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/providers/AuthProvider';
 import { fonts } from '@/constants/theme';
-import { evidenceUrl } from '@/lib/config';
+import { evidenceUrl, isApiUrl } from '@/lib/config';
+import { getToken } from '@/lib/client';
 import { Button, Notice, ScreenState, surface, useBottomSpace } from '@/components/ScreenState';
 import { StatusBadge, statusLabel } from '@/components/TicketCard';
 
@@ -32,9 +33,10 @@ export default function TicketDetailScreen() {
       <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 32 }}>{ticket.title}</Text>
       <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 22 }}>{ticket.location} · {ticket.ward_name}</Text>
     </View>
-    {ticket.is_demo ? <Notice>Synthetic demonstration ticket. Photos and verification scores are illustrative, not real field measurements. Live repair submission is disabled.</Notice> : null}
+    {ticket.is_demo ? <Notice>SAMPLE DATA. This is a demonstration record, not a real report. Its status is a sample outcome, not real repair work, and live repair submission is disabled.</Notice> : null}
+    {!ticket.is_demo && ticket.detector_engine !== 'manual' ? <Notice>Legacy record: its severity was set by an earlier automated process, not an engineer, and is not an AI assessment to rely on.</Notice> : null}
     <View style={{ flexDirection: 'row', gap: 12 }}>
-      <View style={[surface(c), { flex: 1 }]}><Text style={{ color: c.primary, fontFamily: fonts.heading, fontSize: 28 }}>{ticket.severity}<Text style={{ color: c.mutedForeground, fontSize: 14 }}>/5</Text></Text><Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10 }}>SEVERITY</Text></View>
+      <View style={[surface(c), { flex: 1 }]}>{ticket.detector_engine === 'manual' ? <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 20 }}>Not triaged</Text> : <Text style={{ color: c.primary, fontFamily: fonts.heading, fontSize: 28 }}>{ticket.severity}<Text style={{ color: c.mutedForeground, fontSize: 14 }}>/5</Text></Text>}<Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10 }}>{ticket.detector_engine === 'manual' ? 'SEVERITY' : 'LEGACY SEVERITY'}</Text></View>
       <View style={[surface(c), { flex: 1 }]}><Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 28 }}>{ticket.report_count}</Text><Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10 }}>REPORTS</Text></View>
     </View>
     <EvidenceImage label="ORIGINAL HAZARD" path={ticket.before_image_url} />
@@ -48,15 +50,13 @@ export default function TicketDetailScreen() {
     {linkError ? <Notice danger>{linkError}</Notice> : null}
     {canRepair ? <Button title="Capture repair evidence" icon="camera" testID="ticket-repair"
       onPress={() => router.push({ pathname: '/tickets/[id]/repair', params: { id } })} /> : null}
-    {user?.role === 'contractor' && ticket.status === 'NEEDS_JE_REVIEW' ? <Notice>Evidence is awaiting Junior Engineer review. This is not a verified closure.</Notice> : null}
+    {user?.role === 'contractor' && ticket.status === 'NEEDS_JE_REVIEW' ? <Notice>Repair photos are awaiting junior engineer review. The ticket stays open until an engineer approves.</Notice> : null}
     {ticket.repairs.map(repair => <View key={repair.id} style={surface(c)}>
       <Text style={{ color: c.foreground, fontFamily: fonts.semibold }}>Repair evidence · {new Date(repair.captured_at).toLocaleString()}</Text>
       <EvidenceImage label="AFTER" path={repair.image_url} />
       <StatusBadge status={repair.decision} />
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 22 }}>{repair.vision_reason}</Text>
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 11 }}>
-        SSIM global {score(repair.ssim_global)} · defect {score(repair.ssim_defect_region)}{'\n'}Same-location score {score(repair.same_location_score)}
-      </Text>
+      {[repair.ssim_global, repair.ssim_defect_region, repair.same_location_score].some(v => v != null) ?
+        <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>Older automated comparison scores exist for this record but are not used. Only the engineer decision counts.</Text> : null}
       {repair.je_decision ? <Notice>Engineer: {statusLabel(repair.je_decision)}{repair.je_notes ? `\n${repair.je_notes}` : ''}</Notice> : null}
     </View>)}
     <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 23 }}>Evidence timeline</Text>
@@ -67,14 +67,20 @@ export default function TicketDetailScreen() {
     </View>) : <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular }}>No events recorded yet.</Text>}
   </ScrollView>;
 }
-const score = (value: number | null | undefined) => value == null ? 'not available' : value.toFixed(3);
 function EvidenceImage({ label, path }: { label: string; path: string }) {
   const c = useColors(); const [failed, setFailed] = useState(false);
+  const uri = evidenceUrl(path);
+  const token = getToken();
+  // Bearer header is attached only for the configured API origin, never third-party hosts or URLs.
+  const headers = token && isApiUrl(uri) ? { Authorization: `Bearer ${token}` } : undefined;
+  const webPrivate = Platform.OS === 'web';
   return <View style={{ gap: 9 }}>
     <Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1 }}>{label}</Text>
-    {failed || !path ? <Notice danger>Evidence image is unavailable. Refresh the ticket to retry.</Notice> :
-      <Image source={{ uri: evidenceUrl(path) }} onError={() => setFailed(true)} resizeMode="cover"
-        accessibilityLabel={label === 'AFTER' ? 'Submitted repair evidence' : 'Original road hazard evidence'}
+    {!uri ? <Notice>This photo is private or not attached. Only the reporter and authorised staff can view it.</Notice> :
+      webPrivate ? <Notice>Private photos cannot be shown in the browser preview of this app. Open the ticket on the web dashboard or the mobile app.</Notice> :
+      failed ? <Notice danger>Photo could not be loaded. You may not have access, or the connection failed. Pull to refresh to retry.</Notice> :
+      <Image source={{ uri, headers }} onError={() => setFailed(true)} resizeMode="cover"
+        accessibilityLabel={label === 'AFTER' ? 'Submitted repair photo' : 'Original road hazard photo'}
         style={{ width: '100%', height: 220, backgroundColor: c.card, borderRadius: c.radius }} />}
   </View>;
 }

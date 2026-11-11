@@ -15,9 +15,14 @@ import Settings from '@/pages/settings';
 import PublicTracker from '@/pages/public';
 import Report from '@/pages/report';
 import Login from '@/pages/login';
+import Privacy from '@/pages/privacy';
 import { RequireRole } from '@/components/shell';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } } });
+
+function ContractorsGuarded() {
+  return <RequireRole roles={['je', 'commissioner']}><Contractors /></RequireRole>;
+}
 
 function ReviewsGuarded() {
   return <RequireRole roles={['je', 'commissioner']}><Reviews /></RequireRole>;
@@ -32,11 +37,12 @@ function Router() {
           <Route path="/tickets" component={Tickets} />
           <Route path="/tickets/:id" component={TicketDetailPage} />
           <Route path="/reviews" component={ReviewsGuarded} />
-          <Route path="/contractors" component={Contractors} />
+          <Route path="/contractors" component={ContractorsGuarded} />
           <Route path="/settings" component={Settings} />
           <Route path="/public" component={PublicTracker} />
           <Route path="/report" component={Report} />
           <Route path="/login" component={Login} />
+          <Route path="/privacy" component={Privacy} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>
@@ -50,10 +56,10 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
     const titles: Record<string, string> = {
       '/': 'Road health overview', '/tickets': 'Road hazard tickets',
       '/reviews': 'Engineer review queue', '/contractors': 'Contractor accountability',
-      '/settings': 'Verification settings', '/public': 'Public road repair tracker',
-      '/report': 'Report a road hazard', '/login': 'Sign in',
+      '/settings': 'Review settings', '/public': 'Public road repair tracker',
+      '/report': 'Report a road hazard', '/login': 'Sign in', '/privacy': 'Privacy notice',
     };
-    const title = titles[location] ?? (location.startsWith('/tickets/') ? 'Ticket evidence' : 'Page not found');
+    const title = titles[location] ?? (location.startsWith('/tickets/') ? 'Ticket details' : 'Page not found');
     document.title = `${title} · NagarDrishti`;
     document.querySelector('meta[property="og:title"]')?.setAttribute('content', document.title);
   }, [location]);

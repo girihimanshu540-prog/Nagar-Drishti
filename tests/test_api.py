@@ -4,6 +4,7 @@ The transaction is rolled back; fixtures never enter live request handlers.
 These are NOT real-camera or real-AI acceptance tests.
 """
 import io
+from collections import defaultdict, deque
 from time import monotonic
 from datetime import timedelta
 import numpy as np
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session as SQLSession
 from api.main import app, database
 from api.models import engine, Ticket, Event, utcnow
 import api.main as routes
+from api import config
 
 @pytest.fixture
 def isolated(monkeypatch):
@@ -24,10 +26,13 @@ def isolated(monkeypatch):
     def override():
         yield db
     app.dependency_overrides[database] = override
-    # Deliberately explicit test doubles. Never activated in the running service.
-    monkeypatch.setattr(routes, "detect", lambda *args: {
-        "defect_present":True,"defect_type":"pothole","severity":4,"confidence":.95,
-        "reason":"TEST FIXTURE: deterministic pothole detection", "is_screen":False,"bbox":[.2,.2,.7,.7],"engine":"test-fixture"})
+    # Explicit development-only fixture; the running service blocks demo logins.
+    monkeypatch.setattr(config, "ALLOW_DEMO_ACCOUNTS", True)
+    monkeypatch.setattr(routes, "hits", defaultdict(deque))
+    def forbidden_analysis(*args, **kwargs):
+        raise AssertionError("Launch workflows must not run any AI or image comparison.")
+    for name in ("detect", "vision_json", "image_metrics"):
+        monkeypatch.setattr("api.ai.pipeline." + name, forbidden_analysis)
     monkeypatch.setattr(routes, "save_image", lambda data: "/api/evidence/test-fixture")
     rgb = np.random.default_rng(42).integers(30,230,(512,512,3),dtype=np.uint8)
     stream = io.BytesIO()
@@ -53,7 +58,9 @@ def test_valid_report_and_6m_dedup_40m_separation(isolated):
     client, db, photo = isolated
     login(client,"citizen")
     first = report(client,photo).json()
-    assert first["accepted"] and first["severity"] == 4
+    assert first["accepted"] and first["severity"] == 1
+    assert first["detector_engine"] == "manual" and first["onnx"] is None
+    assert first["ticket"]["title"] == "Road Hazard Report"
     second = report(client,photo,6).json()
     third = report(client,photo,40).json()
     assert second["ticket"]["id"] == first["ticket"]["id"]

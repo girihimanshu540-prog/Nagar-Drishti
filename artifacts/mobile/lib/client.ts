@@ -8,6 +8,8 @@ import { apiOrigin } from './config';
 let token: string | null = null;
 let onUnauthorized: (() => void) | null = null;
 export const setToken = (value: string | null) => { token = value; };
+/** Current bearer token, for native image requests to the configured API origin only. */
+export const getToken = () => token;
 export const setUnauthorizedHandler = (callback: (() => void) | null) => { onUnauthorized = callback; };
 setBaseUrl(apiOrigin || null);
 setAuthTokenGetter(() => token);

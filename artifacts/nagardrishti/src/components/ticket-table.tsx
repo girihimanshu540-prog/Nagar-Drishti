@@ -40,7 +40,7 @@ export function TicketTable({ tickets, compact = false }: { tickets: Ticket[]; c
                   <div className="truncate text-xs text-muted-foreground">{t.location} · {t.ward_name}</div>
                 </Link>
               </td>
-              <td className="py-2 pr-3"><SevMeter value={t.severity} /></td>
+              <td className="py-2 pr-3">{t.detector_engine === 'manual' ? <span className="font-mono text-[10px] uppercase text-muted-foreground" title="Severity has not been assessed">Not triaged</span> : <SevMeter value={t.severity} />}</td>
               <td className="py-2 pr-3"><StatusPill status={t.status} /></td>
               {!compact && <td className="py-2 pr-3 font-mono text-xs tnum">{t.traffic_density.toFixed(2)}</td>}
               {!compact && <td className="py-2 pr-3 text-xs">{t.contractor_name ?? <span className="text-muted-foreground">Unassigned</span>}</td>}

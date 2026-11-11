@@ -34,15 +34,15 @@ function sevNormLocal(v: number) {
 
 export function DemoTag({ className }: { className?: string }) {
   return (
-    <span title="Seeded demonstration record, not a real field report" className={cn('inline-flex items-center gap-1 rounded-sm border border-dashed border-[#0A6CFF]/50 px-1.5 py-px font-mono text-[9.5px] uppercase tracking-widest text-[#6EA8FF]', className)}>
-      <FlaskConical className="h-2.5 w-2.5" /> Demo
+    <span title="Sample record for demonstration. Not a real report or real repair outcome." className={cn('inline-flex items-center gap-1 rounded-sm border border-dashed border-[#0A6CFF]/50 px-1.5 py-px font-mono text-[9.5px] uppercase tracking-widest text-[#6EA8FF]', className)}>
+      <FlaskConical className="h-2.5 w-2.5" /> Sample data
     </span>
   );
 }
 
 export function Panel({ title, kicker, right, children, className, bodyClass }: { title?: ReactNode; kicker?: string; right?: ReactNode; children: ReactNode; className?: string; bodyClass?: string }) {
   return (
-    <section className={cn('rise rounded-md border border-card-border bg-card/80 backdrop-blur-sm', className)}>
+    <section className={cn('rise min-w-0 max-w-full rounded-md border border-card-border bg-card/80 backdrop-blur-sm', className)}>
       {(title || right) && (
         <header className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2.5">
           <div className="min-w-0">
@@ -100,7 +100,7 @@ export function Kpi({ label, value, sub, tone = 'default', testid, delay = 0 }: 
   return (
     <div className="rise group relative overflow-hidden rounded-md border border-card-border bg-card/80 px-4 py-3 transition-transform hover:-translate-y-0.5" style={{ animationDelay: `${delay}ms` }}>
       <span className={cn('absolute left-0 top-0 h-full w-[3px]', bar)} />
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="break-words font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div data-testid={testid} className="mt-1 font-display text-3xl font-extrabold tnum">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
     </div>
@@ -119,34 +119,17 @@ export function PageHead({ kicker, title, children }: { kicker: string; title: s
   );
 }
 
-export function EvidenceImage({ src, alt, bbox, label, testid }: { src?: string | null; alt: string; bbox?: number[]; label: string; testid: string }) {
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+export function EvidenceImage({ src, alt, label, testid, privateNote }: { src?: string | null; alt: string; label: string; testid: string; privateNote?: string }) {
   const [failed, setFailed] = useState(false);
-  let box: { l: number; t: number; w: number; h: number } | null = null;
-  if (bbox && bbox.length === 4) {
-    const [a, b, c, d] = bbox;
-    const norm = Math.max(a, b, c, d) <= 1;
-    const W = norm ? 1 : dims?.w ?? 0;
-    const H = norm ? 1 : dims?.h ?? 0;
-    if (W && H) {
-      // interpreted as [x1, y1, x2, y2]
-      box = { l: (a / W) * 100, t: (b / H) * 100, w: ((c - a) / W) * 100, h: ((d - b) / H) * 100 };
-    }
-  }
   return (
     <figure className="relative overflow-hidden rounded-md border border-border bg-[#07090D]">
       <figcaption className="absolute left-2 top-2 z-10 rounded-sm bg-[#0B0D12]/85 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest">{label}</figcaption>
       {src && !failed ? (
-        <div className="relative">
-          <img data-testid={testid} src={src} alt={alt} onError={() => setFailed(true)} onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} className="block aspect-[4/3] w-full object-cover" />
-          {box && (
-            <div data-testid={`${testid}-bbox`} className="absolute border-2 border-[#F26B1D] shadow-[0_0_0_9999px_rgba(11,13,18,.35)] transition-all" style={{ left: `${box.l}%`, top: `${box.t}%`, width: `${box.w}%`, height: `${box.h}%` }}>
-              <span className="absolute -top-5 left-[-2px] bg-[#F26B1D] px-1 font-mono text-[9.5px] font-bold uppercase text-[#0B0D12]">defect</span>
-            </div>
-          )}
-        </div>
+        <img data-testid={testid} src={src} alt={alt} onError={() => setFailed(true)} className="block aspect-[4/3] w-full object-cover" />
       ) : (
-        <div className="grid aspect-[4/3] place-items-center font-mono text-xs text-muted-foreground">{failed ? 'Image unavailable' : 'No image'}</div>
+        <div data-testid={`${testid}-unavailable`} className="grid aspect-[4/3] place-items-center p-6 text-center text-xs text-muted-foreground">
+          <span className="max-w-[260px] leading-relaxed">{!src ? (privateNote ?? 'No photo attached.') : 'Photo could not be loaded. You may need to sign in with an account that can access this ticket.'}</span>
+        </div>
       )}
     </figure>
   );

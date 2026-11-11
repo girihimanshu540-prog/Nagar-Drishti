@@ -64,6 +64,11 @@ function toScriptString(value) {
 }
 
 function serveManifest(platform, res) {
+  if (platform !== 'ios' && platform !== 'android') {
+    res.writeHead(400);
+    res.end('Invalid platform');
+    return;
+  }
   const manifestPath = path.join(STATIC_ROOT, platform, 'manifest.json');
 
   if (!fs.existsSync(manifestPath)) {
@@ -91,7 +96,7 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
   const expsUrl = `exps://${host}${basePath}`;
 
   const html = landingPageTemplate
-    .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
+    .replace(/BASE_URL_PLACEHOLDER/g, escapeHtml(baseUrl))
     .replace(/EXPS_URL_ATTRIBUTE_PLACEHOLDER/g, escapeHtml(expsUrl))
     .replace(/EXPS_URL_JSON_PLACEHOLDER/g, toScriptString(expsUrl))
     .replace(/APP_NAME_PLACEHOLDER/g, escapeHtml(appName));
@@ -101,10 +106,17 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
-  const filePath = path.join(STATIC_ROOT, safePath);
-
-  if (!filePath.startsWith(STATIC_ROOT)) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    res.writeHead(400);
+    res.end('Invalid path');
+    return;
+  }
+  const filePath = path.resolve(STATIC_ROOT, '.' + (decoded.startsWith('/') ? decoded : '/' + decoded));
+  const relative = path.relative(STATIC_ROOT, filePath);
+  if (decoded.includes('\0') || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -113,6 +125,13 @@ function serveStaticFile(urlPath, res) {
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     res.writeHead(404);
     res.end('Not Found');
+    return;
+  }
+  // Also constrain symlink targets, not only the normalized request path.
+  const realRelative = path.relative(fs.realpathSync(STATIC_ROOT), fs.realpathSync(filePath));
+  if (realRelative === '..' || realRelative.startsWith('..' + path.sep) || path.isAbsolute(realRelative)) {
+    res.writeHead(403);
+    res.end('Forbidden');
     return;
   }
 
@@ -127,7 +146,16 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host}`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  let url;
+  try {
+    url = new URL(req.url || '/', 'http://localhost');
+  } catch {
+    res.writeHead(400);
+    res.end('Invalid URL');
+    return;
+  }
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {

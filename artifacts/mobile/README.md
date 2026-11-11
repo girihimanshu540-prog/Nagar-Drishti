@@ -5,6 +5,10 @@ NagarDrishti FastAPI service. This package is at `artifacts/mobile/`, with
 registered preview path `/mobile/`. It does not create a backend or database.
 The existing Vite web app remains at `/`.
 
+Public-launch mode has no AI pothole detection or automated repair verification.
+New reports are unverified submissions. Every repair requires an engineer decision.
+Demo accounts are blocked by default and always blocked in production.
+
 ## Configure and run
 
 From the repository root:
@@ -81,8 +85,8 @@ completion, cancellation, backgrounding or unmount.
 Client guards reject photos older than 120 seconds, GPS accuracy worse than
 50 m, stale GPS fixes older than 30 seconds, and repair distance over 15 m.
 Retake if either photo or GPS freshness expires. The server remains authoritative
-and may apply tighter commissioner settings, image-quality checks, screen
-checks and AI verification. No client-generated closure decisions or AI scores
+and may apply tighter commissioner settings and local image-quality checks.
+No screen/content detection or AI verification runs. No client-generated closure decisions or AI scores
 are sent.
 
 Temporary capture files are discarded on retake, successful submission and

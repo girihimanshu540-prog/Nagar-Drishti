@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { OnnxSummary } from '@/components/onnx-summary';
 import { Download, Search, Map as MapIcon, Rows3 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useGetTickets, getGetTicketsQueryKey, useGetWards, getGetWardsQueryKey, useGetMyReports, getGetMyReportsQueryKey, type GetTicketsParams, type Ticket } from '@workspace/api-client-react';
@@ -9,7 +8,7 @@ import { TicketMap } from '@/components/ticket-map';
 import { POLL, STATUS_META, fmtDate, useAuth } from '@/lib/core';
 
 function exportCsv(rows: Ticket[]) {
-  const cols: (keyof Ticket)[] = ['id', 'title', 'location', 'ward_name', 'status', 'severity', 'traffic_density', 'priority_score', 'report_count', 'contractor_name', 'lat', 'lng', 'created_at', 'closed_at', 'detector_engine', 'is_demo'];
+  const cols: (keyof Ticket)[] = ['id', 'title', 'location', 'ward_name', 'status', 'severity', 'traffic_density', 'priority_score', 'report_count', 'contractor_name', 'lat', 'lng', 'created_at', 'closed_at', 'is_demo'];
   const esc = (v: unknown) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
   const a = document.createElement('a');
@@ -102,7 +101,6 @@ export default function Tickets() {
                     <div className="truncate text-muted-foreground">{r.reason}</div>
                     <div className="text-muted-foreground">{fmtDate(r.captured_at)}</div>
                   </div>
-                  <div className="w-full"><OnnxSummary result={r.onnx} /></div>
                 </div>
               ))}
             </div>

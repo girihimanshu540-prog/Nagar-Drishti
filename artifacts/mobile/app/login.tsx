@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, Keyboard, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Keyboard, Linking, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useLogin } from '@workspace/api-client-react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,13 +9,13 @@ import { fonts } from '@/constants/theme';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/providers/AuthProvider';
 import { errorMessage } from '@/lib/client';
+import { privacyUrl } from '@/lib/config';
 
 export default function LoginScreen() {
   const c = useColors(); const insets = useSafeAreaInsets(); const bottom = useBottomSpace();
   const auth = useAuth(); const mutation = useLogin();
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState(false);
-  const demo = (role: 'citizen' | 'contractor') => { setEmail(`${role}@nagardrishti.demo`); setPassword('NagarDemo2026!'); setError(null); };
   const submit = async () => {
     if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
     Keyboard.dismiss(); setError(null); setBusy(true);
@@ -34,8 +34,8 @@ export default function LoginScreen() {
         <Text style={{ color: c.primary, fontFamily: fonts.mono, fontSize: 10, letterSpacing: 2 }}>FIELD COMPANION</Text></View>
     </View>
     <View style={{ paddingVertical: 18, gap: 14 }}>
-      <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 44, lineHeight: 47 }}>Better roads.{'\n'}Real evidence.</Text>
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24 }}>Report a hazard. Verify a repair.{'\n'}No closure without verified evidence.</Text>
+      <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 44, lineHeight: 47 }}>Report it.{'\n'}Track the repair.</Text>
+      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24 }}>Report a road hazard with a live photo.{'\n'}Engineers review every repair.</Text>
     </View>
     {auth.notice ? <Notice>{auth.notice}</Notice> : null}
     <View style={{ gap: 9 }}>
@@ -55,12 +55,9 @@ export default function LoginScreen() {
     {error ? <Notice danger>{error}</Notice> : null}
     <Button title="Sign in" icon="arrow-right" testID="login-submit" busy={busy} onPress={() => void submit()} />
     <View style={{ gap: 12, borderTopWidth: 1, borderColor: c.border, paddingTop: 20 }}>
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1.3 }}>EXPLORE THE DEMO</Text>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <View style={{ flex: 1 }}><Button title="Citizen" icon="user" secondary disabled={busy} testID="demo-citizen" onPress={() => demo('citizen')} /></View>
-        <View style={{ flex: 1 }}><Button title="Contractor" icon="tool" secondary disabled={busy} testID="demo-contractor" onPress={() => demo('contractor')} /></View>
-      </View>
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }}>Demo buttons fill the form only. Synthetic tickets are for evaluation; live repairs require real report evidence. New citizens can register on the web app.</Text>
+      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20 }}>Not an official municipal service. Reports are unverified until staff review them; repairs close only after a junior engineer approves. No AI detection is used. New citizens can register on the web app.</Text>
+      {privacyUrl ? <Button title="Privacy notice" icon="shield" secondary testID="login-privacy"
+        onPress={() => { void Linking.openURL(privacyUrl).catch(() => setError('Could not open the privacy notice.')); }} /> : null}
     </View>
   </KeyboardAwareScrollViewCompat>;
 }

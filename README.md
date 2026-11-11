@@ -1,6 +1,10 @@
 # NagarDrishti
 
-Road-hazard reporting and repair verification. **No closure without verified evidence.**
+Citizen road-hazard reporting and human-reviewed repair tracking.
+
+**Public-launch mode: all automated pothole detection and image verification are disabled.**
+Reports are submissions, not AI-confirmed defects. Every repair requires an engineer's
+written decision. See [launch review and remaining blockers](LAUNCH_READINESS.md).
 
 ## Delivered scope
 
@@ -17,24 +21,26 @@ See [mobile setup and device acceptance](artifacts/mobile/README.md).
 - Four role-specific views: citizen, contractor, Junior Engineer and commissioner.
 - Leaflet / OpenStreetMap hazard map, search, status/ward/severity filters, priority sorting and CSV export.
 - Live-camera citizen reports and contractor repairs; no gallery picker.
-- Live image quality checks, timestamp/GPS checks, screen heuristic plus vision assessment.
-- Vision detection fallback; optional YOLOv8 ONNX inference without PyTorch.
-- 10 m report grouping, maximum severity aggregation, configured traffic-index prioritization.
-- SSIM global and defect-region checks, ORB/RANSAC surrounding-feature matching, independent vision comparison.
-- Conservative repair decisions: verified closure, reopening, rejection, or JE review. Uncertainty never closes a ticket.
+- Local image-quality and timestamp/GPS checks only; no content or screen detection.
+- No ONNX inference, external vision fallback, SSIM or ORB in live submission routes.
+- 10 m report grouping and configured traffic-index ordering. New reports use an
+  untriaged default severity, not an automated risk assessment.
+- Every valid repair submission enters engineer review; no automatic closure.
 - Assignment, reasoned JE approvals/rejections and transactional ticket audit events.
 - Commissioner settings and traffic-zone create/edit/delete; open priorities recomputed on changes.
 - Persistent evidence in App Storage; metadata in PostgreSQL.
 - 15-second polling for operational data.
-- 25 clearly labeled synthetic demonstration tickets; no fake AI results in live flows.
+- Clearly labeled synthetic demonstration tickets, excluded from live metrics.
+- Public approximate locations; raw evidence and precise GPS restricted to authorized parties.
+- Public privacy notice at `/privacy`; operator/contact and retention details still block launch.
 
 ## Project map
 
 | Location | Purpose |
 |---|---|
 | `api/` | FastAPI, SQLAlchemy models, role auth, serializers, App Storage |
-| `api/ai/pipeline.py` | Detection, image quality, geometry, SSIM/ORB and repair decisions |
-| `api/config.py` | Central defaults and AI/verification thresholds |
+| `api/ai/pipeline.py` | Local capture checks plus archived, inactive analysis utilities |
+| `api/config.py` | Capture defaults and hard-disabled launch detection mode |
 | `artifacts/nagardrishti/` | React, Vite, Tailwind web app |
 | `artifacts/mobile/` | Expo native citizen/contractor companion; live camera, GPS and bearer sessions |
 | `artifacts/api-server/` | Managed service launcher for the Python API |
@@ -85,11 +91,10 @@ Never commit real secret values.
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection, provided by the project database |
 | `SESSION_SECRET` | Required secret for JWT signatures; use a high-entropy value |
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` | Managed OpenAI integration endpoint |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | Managed OpenAI integration credential |
-| `OPENAI_API_KEY` | Optional direct OpenAI key if the managed integration is not configured |
-| `VISION_MODEL` | Optional; default `gpt-5.4-mini` |
-| `DETECTOR_MODE` | `auto`, `onnx`, `vision`; initial default; commissioner settings override it |
+| `APP_ENV` | Set `production` for launch safeguards (production NODE_ENV also activates them) |
+| `ALLOW_DEMO_ACCOUNTS` | Default false; optional explicit development-only demo access; ignored in production |
+| `DETECTOR_MODE` | Ignored; runtime settings force `disabled` even if stored settings say otherwise |
+| AI/vision credentials | Not required or used by public-launch reporting and repair routes |
 | `PRIVATE_OBJECT_DIR` | Managed App Storage bucket/prefix for evidence |
 | `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | Managed App Storage bucket |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | Managed public storage prefixes |
@@ -98,9 +103,8 @@ Never commit real secret values.
 | `EXPO_PUBLIC_API_URL` | Public API origin for Expo; no `/api` suffix; must be reachable from the phone |
 | `PORT` / `BASE_PATH` | Injected by the managed workflows |
 
-AI uses Replit AI Integrations: no personal API key is required; usage is billed to
-Replit credits. Missing provider credentials or failed analysis returns an explicit error.
-No live endpoint silently substitutes seed data or test results.
+No live submission route invokes an AI provider. Existing AI secrets do not enable
+detection. No live endpoint substitutes seed data or test results.
 
 ## Demo accounts
 
@@ -116,7 +120,9 @@ All use password **`NagarDemo2026!`**.
 | Contractor 2 | `contractor5@nagardrishti.demo` |
 | Contractor 3 | `contractor6@nagardrishti.demo` |
 
-Open **Sign in**, choose a demo role to populate the form, then submit.
+Public demo credential selectors have been removed. These accounts and existing
+demo sessions are blocked by default. They are only usable in explicitly opted-in
+development or isolated tests; production always blocks them.
 Anonymous users only receive read-only public access. Never expose these seeded privileged
 accounts in a real municipal deployment: use a fresh production database and provision
 authorized staff securely. Public registration always creates a citizen, never staff.
@@ -146,7 +152,7 @@ configuration uses the development API, not a published service. See
 the browser preview uses an in-memory bearer session. The existing Vite app keeps
 its HTTP-only cookie authentication.
 
-## Verification policy
+## Launch submission and review policy
 
 Capture must be tagged `live_camera`, within 120 seconds, and GPS accuracy <= 50 m.
 Repair captures must be within 15 m of the ticket. Commissioner changes may tighten
@@ -155,54 +161,21 @@ but cannot loosen these product limits.
 Priority is literally `0.6 * severity + 0.4 * configured_traffic_density`, where severity
 is 1–5 and density is 0–1. Density is a **configured traffic index**, not live traffic.
 
-The supplied trained ONNX model is installed at `api/models/pothole.onnx`:
-float32 RGB input `[1,3,640,640]`, YOLO detection output `[1,9,8400]`.
-Only class 2 (`Pothole`) is used; the other four metadata labels are dataset
-attribution strings, not supported defect categories. Overlapping predictions
-are suppressed before computing severity. No pothole detection does not override
-a vision-detected crack or other hazard.
+New citizen photos pass local image-quality, recency and GPS checks and create or
+join an unverified road-hazard ticket. Severity starts at an explicitly untriaged
+default of 1; it is not a model score. Repair photos pass the same checks plus
+proximity validation and always enter `NEEDS_JE_REVIEW`. A scoped engineer or
+commissioner must approve/reject with meaningful notes. Contractors cannot approve.
 
-The 12.8 MB binary is excluded from Git and stored durably in private App Storage.
-`api/models/pothole.json` pins its SHA-256, size, class and storage key. If the local
-file is missing, the loader restores it from the configured private bucket and
-verifies its integrity before loading. Inference sessions are cached on CPU.
-`auto` uses ONNX plus the existing vision assessment, falling back explicitly to
-vision if model restoration/loading/inference fails. `vision` bypasses ONNX;
-forced `onnx` mode returns an explicit unavailable error if the model fails.
-Vision independently screens for screen photography even when ONNX is used,
-and the existing repair-closure gates are unchanged. Models may make mistakes.
+The old `VERIFIED_CLOSED` status identifier is retained for compatibility. Its UI
+label is simply "Closed": older records may predate human-only review.
+Engineer-approved KPI counts require an actual recorded engineer approval.
 
-Model metadata declares AGPL-3.0 and includes a dataset CC BY 4.0 attribution;
-confirm applicable model/data licensing before distributing or commercializing.
-
-ONNX integration verification: CPU loading/inference and checksum-verified App
-Storage restoration succeeded. `uv run python -m pytest tests/test_onnx_detector.py
-tests/test_pipeline.py tests/test_api.py -q` passed 31 tests. This verifies integration
-and policy behavior, not real-world detector accuracy or genuine repair acceptance.
-
-### See the ONNX result after a citizen report
-
-Sign in as a citizen, open **Report a road hazard** (`/report`), capture a live
-photo, and choose **File report**. The accepted/rejected confirmation includes
-**ONNX pothole model**: whether inference completed, whether a qualifying pothole
-was detected, the highest raw pothole-class confidence score, and the existing
-65% detection threshold. This score is separate from vision confidence and the
-final report/ticket decision. A high raw score still needs the existing class
-and valid-box filters to count as a detection.
-
-If ONNX fails, the summary identifies the vision fallback and shows no invented
-confidence. Vision-only mode or pre-analysis capture rejection shows that ONNX
-did not run. These diagnostics do not change acceptance, deduplication, severity,
-ticket creation or fallback decisions.
-
-New report diagnostics are saved with the existing report JSON and remain
-visible in **Tickets → My reports** after navigation/reload. Older and synthetic
-reports without diagnostics show “not recorded,” not manufactured scores.
-The native app shows the same information on submission and in **Your reports**.
-
-SSIM is similarity, not proof of repair: surroundings must match, while the original
-defect region must change. Missing boxes or weak feature evidence require JE review.
-The backend does not accept client-provided verification scores or close decisions.
+The trained model, private stored object, manifest and historical 65% constant are
+retained unchanged for offline research. Live routes do not import its detector,
+restore its weights or invoke either model/vision fallback. Commissioners cannot
+re-enable analysis using settings. Old inference results are not displayed as proof.
+Offline model licensing still applies if those weights are redistributed.
 
 ### Limits that matter before field use
 
@@ -210,27 +183,33 @@ The backend does not accept client-provided verification scores or close decisio
   A modified API client can lie about provenance. The camera-only UI and image checks reduce,
   but cannot eliminate, fraud. Do not use this build alone as authorization to pay contractors.
 - No billing/payment integration or automatic bill release exists.
-- ORB uses surrounding features and homography inliers, but does not warp SSIM regions.
-  Significant viewpoint changes conservatively go to JE review.
-- Screen FFT checks are heuristic; independent vision is required.
+- There is no automated screen-photo or road-defect check. Human reviewers must
+  assess evidence and may require an on-site inspection.
 - Valid report GPS is assigned to the nearest configured ward. Production needs real ward
   boundary polygons and an explicit service-area policy.
 - Rate limiting is per process; a distributed public service needs a shared limiter.
-- Evidence is publicly viewable for published tickets. Photo privacy/redaction and retention
-  policy need municipal approval before real public rollout.
+- Raw evidence is private and served only after authentication and ticket access checks.
+  Public ticket lists/details show rounded coordinates, no photos or raw timelines.
+- Operator identity, privacy contact, retention/deletion policy, authorized staff
+  and native on-device testing remain required before launch.
 
 ## Tests and observed results
 
 Run:
 
 ```sh
-uv run python -m pytest tests/test_pipeline.py tests/test_api.py -q
+uv run python -m pytest tests/test_pipeline.py tests/test_api.py tests/test_launch.py -q
 pnpm run typecheck
 ```
 
-**Observed: 24 tests passed; full TypeScript check passed.**
-Policy tests use explicit controlled AI/storage fixtures in an isolated rolled-back
-database transaction. They are never enabled in live service code.
+Launch API tests use rolled-back transactions and explicit storage fixtures; AI
+functions are replaced with traps that fail if called. They do not prove device
+camera/GPS, real field conditions or production readiness.
+
+### Historical pre-launch checks (retired AI workflow)
+
+The following older observations describe the former experimental workflow only,
+not the current launch behavior or evidence that AI can verify repairs:
 
 | Requested acceptance case | Observed evidence |
 |---|---|
@@ -259,7 +238,7 @@ Optional deployment smoke runner:
 uv run python tests/e2e.py --base-url https://YOUR_VERIFIED_HOST
 ```
 
-This script only checks reads and demo logins; it is **not** a full camera E2E test and
+This script checks public reads, photo redaction and rejected demo logins; it is **not** a full camera E2E test and
 has not been run as a first-build browser test.
 
 ## Publishing

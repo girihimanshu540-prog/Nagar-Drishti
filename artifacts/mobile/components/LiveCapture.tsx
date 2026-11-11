@@ -8,6 +8,7 @@ import { useColors } from '@/hooks/useColors';
 import { fonts } from '@/constants/theme';
 import { captureInput, discardCapture, freshLocation, type CapturedEvidence, type TicketLocation } from '@/lib/capture';
 import { validateEvidence } from '@/lib/capture-policy';
+import { privacyUrl } from '@/lib/config';
 import { errorMessage } from '@/lib/client';
 import type { CaptureInput, CaptureResult } from '@workspace/api-client-react';
 import { Button, Notice, ScreenState, useBottomSpace } from './ScreenState';
@@ -33,7 +34,7 @@ export function LiveCapture({ target, submit, repair = false }: {
   const imageUri = useRef<string | null>(null);
   const mounted = useRef(true);
   const busy = stage !== 'idle';
-  usePreventRemove(stage === 'sending', () => setError('Evidence is being verified. Please wait for the result before leaving.'));
+  usePreventRemove(stage === 'sending', () => setError('Your photo is uploading. Please wait for the result before leaving.'));
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; controller.current?.abort(); if (imageUri.current) void discardCapture(imageUri.current); };
@@ -116,7 +117,8 @@ export function LiveCapture({ target, submit, repair = false }: {
   if (!permissionsGranted) return <ScrollView style={{ backgroundColor: c.background }} contentContainerStyle={{ padding: 22, paddingBottom: bottom, gap: 18 }}>
     <View style={{ alignItems: 'flex-start', paddingVertical: 24 }}><Feather name="camera" size={44} color={c.primary} /></View>
     <Text style={{ color: c.foreground, fontFamily: fonts.heading, fontSize: 28 }}>Evidence starts here.</Text>
-    <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24 }}>Camera access captures the actual road. Foreground location confirms where you are. We never use your gallery or track location in the background.</Text>
+    <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 16, lineHeight: 24 }}>Camera access captures the actual road. Foreground location confirms where you are. We never use your gallery or track location in the background. Photos and precise GPS are visible only to you and authorised staff; the public sees a general location.</Text>
+    {privacyUrl ? <Button title="Read the privacy notice" testID="capture-privacy" secondary icon="shield" onPress={() => { void Linking.openURL(privacyUrl).catch(() => setError('Could not open the privacy notice.')); }} /> : null}
     <Notice>Camera: {cameraPermission.granted ? 'allowed' : 'not allowed'}{'\n'}Location: {locationPermission.granted ? 'allowed' : 'not allowed'}</Notice>
     {error ? <Notice danger>{error}</Notice> : null}
     <Button title="Allow camera & location" testID="capture-permissions" busy={requestingPermissions} onPress={() => void allow()} />
@@ -139,7 +141,7 @@ export function LiveCapture({ target, submit, repair = false }: {
     </View>
     <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 21 }}>
       {repair ? 'Match the original photo’s angle and include permanent surroundings. Stand within 15 m of the ticket.' :
-        'Frame the hazard and its surroundings clearly. Avoid glare and blur. Photograph the road directly, not a screen.'}
+        'Frame the hazard and its surroundings clearly. Avoid glare and blur. Photograph the road directly, not a screen.'} Do not photograph faces or number plates. Not an emergency service.
     </Text>
     {evidence ? <Notice>
       GPS ±{evidence.accuracy.toFixed(1)} m · {evidence.lat.toFixed(5)}, {evidence.lng.toFixed(5)}{'\n'}
@@ -148,7 +150,7 @@ export function LiveCapture({ target, submit, repair = false }: {
     </Notice> : null}
     {error ? <Notice danger>{error}</Notice> : null}
     {uncertain ? <Notice>Submission outcome is unknown. Go back and refresh your {repair ? 'ticket' : 'reports'} before capturing again. Do not resubmit the same photo.</Notice> : null}
-    {stage === 'sending' ? <Notice>Uploading and checking evidence. This may take a few minutes. Keep this screen open; closure is decided only by the server.</Notice> : null}
+    {stage === 'sending' ? <Notice>Uploading. Keep this screen open. Nothing closes automatically; a junior engineer reviews every repair.</Notice> : null}
     {!evidence ? <Button title={stage === 'gps' ? 'Getting accurate GPS…' : stage === 'capturing' ? 'Capturing…' : 'Capture live photo'} icon="camera"
       testID="capture-photo" busy={busy} disabled={!ready || !active || uncertain} onPress={() => void take()} /> : <>
       <Button title={repair ? 'Submit repair evidence' : 'Submit hazard report'} icon="upload" testID="capture-submit" busy={stage === 'sending'}

@@ -13,7 +13,7 @@ import { POLL, useAuth, errMsg, errStatus, fmtDate, fmtNum, ago } from '@/lib/co
 import { useToast } from '@/hooks/use-toast';
 
 function SyntheticNote() {
-  return <div data-testid="banner-synthetic" className="rounded-sm border border-dashed border-[#0A6CFF]/60 bg-[#0A6CFF]/10 px-3 py-2 text-xs text-[#9EC3FF]"><b className="font-mono uppercase tracking-widest">Synthetic demonstration.</b> Images, bounding box and scores on this seeded ticket are illustrative values, not results from an AI model. Repairs submitted here return DEMO_EVIDENCE; file a real citizen report for real verification.</div>;
+  return <div data-testid="banner-synthetic" className="rounded-sm border border-dashed border-[#0A6CFF]/60 bg-[#0A6CFF]/10 px-3 py-2 text-xs text-[#9EC3FF]"><b className="font-mono uppercase tracking-widest">Sample data.</b> This is a sample record for demonstration. Its photos, status and outcome are sample values, not a real report or real repair work, and are excluded from public totals.</div>;
 }
 
 export function useInvalidateTicket() {
@@ -28,43 +28,23 @@ export function useInvalidateTicket() {
   };
 }
 
-function Metric({ label, value, hint, good }: { label: string; value?: number | null; hint: string; good?: boolean }) {
-  const v = value ?? null;
-  return (
-    <div className="rounded-sm border border-border p-2.5">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className={`font-display text-2xl font-extrabold tnum ${v === null ? 'text-muted-foreground' : good ? 'text-emerald-300' : 'text-foreground'}`}>{v === null ? 'n/a' : v.toFixed(3)}</div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full origin-left bg-[#0A6CFF] transition-transform duration-700" style={{ transform: `scaleX(${v ?? 0})` }} /></div>
-      <div className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{hint}</div>
-    </div>
-  );
-}
+const DECISION_LABEL: Record<string, string> = { NEEDS_JE_REVIEW: 'Awaiting engineer review', VERIFIED_CLOSED: 'Closed (recorded status)', REOPENED: 'Rejected, reopened' };
 
 export function RepairCard({ r, t }: { r: Repair; t: TicketDetail }) {
   const report = t.reports[0];
+  const legacyScores = [r.ssim_global, r.ssim_defect_region, r.same_location_score].some((v) => v !== null && v !== undefined);
   return (
     <div data-testid={`card-repair-${r.id}`} className="space-y-3">
-      {(t.is_demo || t.detector_engine === 'seed-demo') && <SyntheticNote />}
+      {t.is_demo && <SyntheticNote />}
       <div className="grid gap-3 md:grid-cols-2">
-        <EvidenceImage testid="img-before" label="Before · citizen" src={report?.image_url ?? t.before_image_url} bbox={report?.bbox} alt="Before repair" />
-        <EvidenceImage testid={`img-after-${r.id}`} label={`After · ${fmtDate(r.captured_at)}`} src={r.image_url} bbox={report?.bbox} alt="After repair" />
+        <EvidenceImage testid="img-before" label="Before · citizen" src={report?.image_url ?? t.before_image_url} alt="Before repair" privateNote="Before photo is private to the reporter and authorised staff." />
+        <EvidenceImage testid={`img-after-${r.id}`} label={`After · ${fmtDate(r.captured_at)}`} src={r.image_url} alt="After repair" privateNote="Repair photo is private to authorised staff." />
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Metric label="SSIM global" value={r.ssim_global} hint="Whole-frame structural similarity. High means same scene framing." />
-        <Metric label="SSIM defect region" value={r.ssim_defect_region} hint="Similarity inside the detection box. Low means the surface changed; high means the pothole may still be there." />
-        <Metric label="Same location" value={r.same_location_score} hint="Confidence both photos show the same spot (GPS + scene match)." good={(r.same_location_score ?? 0) >= 0.7} />
+      <div className="space-y-1 font-mono text-xs">
+        <div><span className="text-muted-foreground">Status </span><b className="uppercase text-primary">{r.je_decision ? (r.je_decision === 'approve' ? 'Engineer approved' : r.je_decision === 'reject' ? 'Engineer rejected' : r.je_decision) : DECISION_LABEL[r.decision] ?? 'Awaiting engineer review'}</b></div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
-        <div className="space-y-1 font-mono text-xs">
-          <div><span className="text-muted-foreground">System decision </span><b className="uppercase text-primary">{r.decision}</b></div>
-          <div><span className="text-muted-foreground">Vision verdict </span><b className="uppercase">{r.vision_verdict}</b></div>
-          {r.je_decision && <div><span className="text-muted-foreground">JE decision </span><b className="uppercase text-[#6EA8FF]">{r.je_decision}</b></div>}
-        </div>
-        <div className="rounded-sm bg-muted/40 p-2.5 text-sm">
-          <div>{r.vision_reason}</div>
-          {r.je_notes && <div className="mt-1.5 border-t border-border pt-1.5 text-muted-foreground">JE notes: {r.je_notes}</div>}
-        </div>
-      </div>
+      {r.je_notes && <div className="rounded-sm bg-muted/40 p-2.5 text-sm"><span className="text-muted-foreground">Engineer notes: </span>{r.je_notes}</div>}
+      {legacyScores && <p data-testid={`text-legacy-scores-${r.id}`} className="text-[11px] text-muted-foreground">Older automated comparison scores exist for this record but are not shown or used. Only the engineer decision counts; no AI or automated verification applies.</p>}
     </div>
   );
 }
@@ -99,7 +79,7 @@ function AssignBox({ t }: { t: TicketDetail }) {
       {c.isError ? <ErrorState error={c.error} onRetry={() => c.refetch()} /> : (
         <select data-testid="select-contractor" value={cid} onChange={(e) => setCid(e.target.value)} disabled={c.isLoading} className="w-full rounded-sm border border-input bg-background px-2 py-1.5 text-sm">
           <option value="">{c.isLoading ? 'Loading contractors' : 'Choose contractor'}</option>
-          {c.data?.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.company} · {(x.verification_rate * (x.verification_rate <= 1 ? 100 : 1)).toFixed(0)}% verified</option>)}
+          {c.data?.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.company} · {(x.verification_rate * (x.verification_rate <= 1 ? 100 : 1)).toFixed(0)}% approved</option>)}
         </select>
       )}
       <button data-testid="button-assign" disabled={!cid || m.isPending} onClick={() => m.mutate({ id: t.id, data: { contractor_id: Number(cid) } })} className="inline-flex w-full items-center justify-center gap-1.5 rounded-sm bg-[#0A6CFF] px-3 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95 disabled:opacity-40"><UserCheck className="h-4 w-4" />{m.isPending ? 'Assigning' : t.assigned_contractor_id ? 'Reassign' : 'Assign'}</button>
@@ -116,7 +96,7 @@ function RepairSubmit({ t }: { t: TicketDetail }) {
     <div className="space-y-3">
       <LiveCamera ticketLocation={{ lat: t.lat, lng: t.lng }} submitLabel="Submit repair evidence" submitting={m.isPending} onSubmit={(input) => { setRes(null); m.mutate({ id: t.id, data: input }); }} />
       {m.isError && <div data-testid="text-repair-error" className="rounded-sm border border-destructive/40 bg-destructive/10 p-2.5 text-sm text-rose-200">{errMsg(m.error)}</div>}
-      {res && <div data-testid="text-repair-result" className={`rounded-sm border p-2.5 text-sm ${res.accepted ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-amber-400/40 bg-amber-400/10'}`}><b className="uppercase">{res.decision}</b> · {res.reason} <span className="font-mono text-xs text-muted-foreground">({res.detector_engine})</span></div>}
+      {res && <div data-testid="text-repair-result" className={`rounded-sm border p-2.5 text-sm ${res.accepted ? 'border-emerald-400/40 bg-emerald-400/10' : 'border-amber-400/40 bg-amber-400/10'}`}><b>{res.decision === 'NEEDS_JE_REVIEW' ? 'Sent for engineer review' : res.decision}</b> · {res.reason} <span className="text-xs text-muted-foreground">The ticket stays open until an engineer approves.</span></div>}
     </div>
   );
 }
@@ -147,10 +127,10 @@ export default function TicketDetailPage() {
         <div>
           <div className="flex flex-wrap items-center gap-2"><span data-testid="text-ticket-id" className="font-mono text-sm text-[#6EA8FF]">{t.id}</span><StatusPill status={t.status} />{t.is_demo && <DemoTag />}{isPublic && <span className="rounded-sm border border-border px-1.5 py-px font-mono text-[9.5px] uppercase tracking-widest text-muted-foreground">public view</span>}</div>
           <h1 data-testid="text-ticket-title" className="mt-1 font-display text-2xl font-extrabold md:text-3xl">{t.title}</h1>
-          <div className="text-sm text-muted-foreground">{t.location} · {t.ward_name} · {t.lat.toFixed(5)}, {t.lng.toFixed(5)}</div>
-          {role === 'contractor' && <a href={`https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary hover:underline">Open location in maps</a>}
+          <div className="text-sm text-muted-foreground">{t.location} · {t.ward_name} · {isPublic ? 'approximate location' : `${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}`}</div>
+          {!isPublic && role === 'contractor' && <a href={`https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary hover:underline">Open location in maps</a>}
         </div>
-        <div className="grid grid-cols-4 gap-px overflow-hidden rounded-md border border-border bg-border text-center">
+        <div className="grid w-full grid-cols-2 gap-px sm:w-auto sm:grid-cols-4 overflow-hidden rounded-md border border-border bg-border text-center">
           {[['Priority', fmtNum(t.priority_score)], ['Traffic', fmtNum(t.traffic_density, 2)], ['Reports', t.report_count], ['Opened', ago(t.created_at)]].map(([k, v]) => (
             <div key={k as string} className="bg-card px-3 py-2"><div className="font-mono text-[9.5px] uppercase tracking-widest text-muted-foreground">{k}</div><div className="font-mono text-base font-bold tnum">{v}</div></div>
           ))}
@@ -159,21 +139,20 @@ export default function TicketDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
         <div className="space-y-4">
-          <Panel kicker={`Detector · ${t.detector_engine}`} title="Hazard evidence" right={<SevMeter value={t.severity} />}>
-            {(t.is_demo || t.detector_engine === 'seed-demo') && <div className="mb-3"><SyntheticNote /></div>}
+          <Panel kicker="Citizen report · unverified until reviewed" title="Reported hazard" right={t.detector_engine === 'manual' ? <span className="font-mono text-[10px] uppercase text-muted-foreground">Not triaged</span> : <SevMeter value={t.severity} />}>
+            {t.is_demo && <div className="mb-3"><SyntheticNote /></div>}
+            {!t.is_demo && t.detector_engine !== 'manual' && <p className="mb-3 text-[11px] text-muted-foreground">Legacy record: severity and scores were set by an earlier automated process, not by an engineer. They are not an AI assessment you should rely on.</p>}
             <div className="grid gap-3 md:grid-cols-[1.3fr_1fr]">
-              <EvidenceImage testid="img-hazard" label="Detection" src={report?.image_url ?? t.before_image_url} bbox={report?.bbox} alt="Reported hazard" />
+              <EvidenceImage testid="img-hazard" label="Reported photo" src={report?.image_url ?? t.before_image_url} alt="Reported hazard" privateNote="This photo is private. The reporting citizen and authorised staff can view it after signing in." />
               {report ? (
                 <dl className="grid content-start grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                  <dt className="text-muted-foreground">Validation</dt><dd className="font-mono uppercase">{report.validation_status}</dd>
+                  <dt className="text-muted-foreground">Checks</dt><dd className="font-mono uppercase">{report.validation_status}</dd>
                   <dt className="text-muted-foreground">Reason</dt><dd>{report.reason}</dd>
                   <dt className="text-muted-foreground">Captured</dt><dd className="font-mono">{fmtDate(report.captured_at)}</dd>
                   <dt className="text-muted-foreground">Source</dt><dd className="font-mono">{report.capture_source}</dd>
                   <dt className="text-muted-foreground">GPS accuracy</dt><dd className="font-mono">{report.gps_accuracy_m !== undefined ? `${report.gps_accuracy_m.toFixed(1)} m` : '—'}</dd>
-                  <dt className="text-muted-foreground">Engine</dt><dd className="font-mono">{report.detector_engine}</dd>
-                  <dt className="text-muted-foreground">BBox</dt><dd className="font-mono">{report.bbox?.map((n) => n.toFixed(2)).join(', ') ?? 'none'}</dd>
                 </dl>
-              ) : <EmptyState title="No report detail" hint={isPublic ? 'Report metadata is visible to signed-in staff.' : undefined} />}
+              ) : <EmptyState title="No report detail" hint={isPublic ? 'Report details are private to the reporter and authorised staff.' : undefined} />}
             </div>
             {t.reports.length > 1 && (
               <div className="mt-3 flex gap-2 overflow-x-auto">
@@ -182,22 +161,22 @@ export default function TicketDetailPage() {
             )}
           </Panel>
 
-          <Panel kicker="Before / after" title="Repair verification">
-            {repairs.length === 0 ? <EmptyState title="No repair submitted yet" hint="Closure requires live-camera repair evidence from the assigned contractor, compared against the original detection." /> : (
+          <Panel kicker="Before / after" title="Repair and engineer review">
+            {repairs.length === 0 ? <EmptyState title="No repair submitted yet" hint={isPublic ? 'Repair photos and review history are private. Status above shows the latest stage.' : 'Closure requires live-camera repair photos from the assigned contractor and approval by a junior engineer.'} /> : (
               <div className="space-y-6">{repairs.map((r) => <RepairCard key={r.id} r={r} t={t} />)}</div>
             )}
           </Panel>
         </div>
 
         <div className="space-y-4">
-          {canReview && <Panel kicker="Uncertain verification" title="JE decision" className="border-amber-400/40"><ReviewForm t={t} /></Panel>}
+          {canReview && <Panel kicker="Human review" title="Engineer decision" className="border-amber-400/40"><ReviewForm t={t} /></Panel>}
           {canAssign && <Panel kicker="Work order" title={t.contractor_name ? `Assigned · ${t.contractor_name}` : 'Assign contractor'}><AssignBox t={t} /></Panel>}
           {canRepair && <Panel kicker="Contractor" title="Submit repair evidence"><RepairSubmit t={t} /></Panel>}
           {!user && (
             <Panel bodyClass="text-sm text-muted-foreground"><ShieldCheck className="mb-1 h-4 w-4 text-primary" />Assignment, repair submission and JE review require sign-in. <Link href="/login" className="text-primary hover:underline">Sign in</Link></Panel>
           )}
           <Panel kicker="Immutable record" title="Audit timeline">
-            {t.events.length === 0 ? <EmptyState title="No events" /> : (
+            {t.events.length === 0 ? <EmptyState title={isPublic ? 'Timeline is private' : 'No events'} hint={isPublic ? 'Sign in as the reporter or authorised staff to see it.' : undefined} /> : (
               <ol className="relative space-y-3 border-l border-border pl-4">
                 {t.events.map((e) => (
                   <li key={e.id} data-testid={`event-${e.id}`} className="relative">

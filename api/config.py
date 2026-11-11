@@ -1,12 +1,16 @@
 """One source of truth for evidence thresholds. Commissioner values persist in DB."""
 import os
 
+# Launch mode is intentionally not an environment-controlled AI switch.
+# Retained weights and historical scores must never activate inference.
+PRODUCTION = os.getenv("APP_ENV") == "production" or os.getenv("NODE_ENV") == "production" or bool(os.getenv("REPLIT_DEPLOYMENT"))
+ALLOW_DEMO_ACCOUNTS = not PRODUCTION and os.getenv("ALLOW_DEMO_ACCOUNTS", "").lower() == "true"
 DEFAULTS = {
     "capture_max_age_s": 120,
     "gps_max_accuracy_m": 50,
     "dedup_radius_m": 10,
     "repair_radius_m": 15,
-    "detector_mode": os.getenv("DETECTOR_MODE", "auto"),
+    "detector_mode": "disabled",
 }
 MIN_BRIGHTNESS = 25
 MIN_LAPLACIAN_VARIANCE = 35

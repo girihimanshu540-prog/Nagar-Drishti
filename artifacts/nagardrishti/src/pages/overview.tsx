@@ -23,8 +23,8 @@ export default function Overview() {
 
   return (
     <div>
-      <PageHead kicker={user ? `Signed in · ${user.name}` : 'Public read-only overview'} title="Road health, ward by ward">
-        <select data-testid="select-ward" value={ward ?? ''} onChange={(e) => setWard(e.target.value ? Number(e.target.value) : undefined)} className="rounded-sm border border-input bg-card px-3 py-1.5 text-sm">
+      <PageHead kicker={user ? `Signed in · ${user.name}` : 'Public read-only overview'} title="Road hazard reports, ward by ward">
+        <select data-testid="select-ward" value={ward ?? ''} onChange={(e) => setWard(e.target.value ? Number(e.target.value) : undefined)} aria-label="Filter by ward" className="min-h-[40px] rounded-sm border border-input bg-card px-3 py-1.5 text-sm">
           <option value="">All wards</option>
           {wards.data?.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
@@ -33,7 +33,7 @@ export default function Overview() {
       {hasDemo && (
         <div data-testid="banner-demo" className="rise mb-4 flex items-start gap-3 rounded-md border border-dashed border-[#0A6CFF]/50 bg-[#0A6CFF]/5 px-4 py-2.5 text-sm">
           <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-[#6EA8FF]" />
-          <span><b className="text-[#6EA8FF]">Demo data present.</b> <span className="text-muted-foreground">Records tagged DEMO are seeded examples for evaluation and are not real field reports.</span></span>
+          <span><b className="text-[#6EA8FF]">Sample data present.</b> <span className="text-muted-foreground">Records labelled sample data are demonstration examples. They are not real reports, and their statuses are sample outcomes, not real repairs. Totals above count real reports only.</span></span>
         </div>
       )}
 
@@ -43,18 +43,19 @@ export default function Overview() {
             <>
               <Kpi testid="kpi-total" label="Tickets" value={s.total} sub={`${s.reports_total} citizen reports`} delay={0} />
               <Kpi testid="kpi-open" label="Open" value={s.open} tone="orange" delay={40} />
-              <Kpi testid="kpi-verified" label="Verified closures" value={s.verified_closures} tone="green" delay={80} />
-              <Kpi testid="kpi-je-queue" label="JE queue" value={s.je_queue} tone="amber" delay={120} />
-              <Kpi testid="kpi-false-prevented" label="False closures stopped" value={s.false_closures_prevented} tone="blue" sub="rejected by evidence" delay={160} />
+              <Kpi testid="kpi-verified" label="Engineer-approved closures" value={s.verified_closures} tone="green" delay={80} />
+              <Kpi testid="kpi-je-queue" label="Awaiting engineer review" value={s.je_queue} tone="amber" delay={120} />
+              <Kpi testid="kpi-false-prevented" label="Repairs sent back" value={s.false_closures_prevented} tone="blue" sub="rejected in engineer review" delay={160} />
               <Kpi testid="kpi-avg-close" label="Avg to close" value={<>{fmtNum(s.avg_time_to_close_hours)}<span className="ml-1 text-base text-muted-foreground">h</span></>} delay={200} />
               <Kpi testid="kpi-reports" label="Reports" value={s.reports_total} delay={240} />
             </>
           )}
         </div>
       )}
+      <p data-testid="text-stats-note" className="mt-2 text-xs text-muted-foreground">Totals count real reports only and exclude sample data. Reports are unverified until reviewed; new closures require engineer approval. Status and per-ward closed counts show recorded status; older closures may predate engineer-only review.</p>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-        <Panel kicker="OpenStreetMap" title="Hazard map" bodyClass="p-2" right={<span className="font-mono text-[10px] text-muted-foreground">{list.length} plotted</span>}>
+      <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Panel kicker="OpenStreetMap · approximate locations" title="Hazard map" bodyClass="p-2" right={<span className="font-mono text-[10px] text-muted-foreground">{list.length} plotted</span>}>
           {tickets.isLoading ? <Skel className="h-[420px]" /> : tickets.isError ? <ErrorState error={tickets.error} onRetry={() => tickets.refetch()} /> : <TicketMap tickets={list} onSelect={(id) => nav(`/tickets/${id}`)} />}
         </Panel>
         <div className="grid gap-4">
@@ -87,9 +88,9 @@ export default function Overview() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+      <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel kicker="Sorted by priority score" title="Work queue" right={<Link href="/tickets" data-testid="link-all-tickets" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">All tickets <ArrowRight className="h-3 w-3" /></Link>}>
-          {tickets.isLoading ? <SkelRows /> : tickets.isError ? <ErrorState error={tickets.error} onRetry={() => tickets.refetch()} /> : list.length === 0 ? <EmptyState title="No tickets in this view" hint="Verified citizen reports will appear here, ranked by severity and traffic." /> : <TicketTable tickets={list.slice(0, 10)} compact />}
+          {tickets.isLoading ? <SkelRows /> : tickets.isError ? <ErrorState error={tickets.error} onRetry={() => tickets.refetch()} /> : list.length === 0 ? <EmptyState title="No tickets in this view" hint="Citizen reports will appear here, ranked by priority." /> : <TicketTable tickets={list.slice(0, 10)} compact />}
         </Panel>
         <Panel kicker="Audit stream" title="Recent activity">
           {activity.isLoading ? <SkelRows /> : activity.isError ? <ErrorState error={activity.error} onRetry={() => activity.refetch()} /> : !activity.data?.length ? <EmptyState title="No activity yet" /> : (
