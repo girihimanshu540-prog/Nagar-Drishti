@@ -30,21 +30,93 @@ export const LoginResponse = zod.object({
 })
 
 
+export const registerBodyNameMin = 2;
+export const registerBodyNameMax = 100;
+
+export const registerBodyEmailMin = 3;
+export const registerBodyEmailMax = 200;
+
+export const registerBodyPasswordMin = 10;
+export const registerBodyPasswordMax = 72;
+
+
+
 export const RegisterBody = zod.object({
-  "name": zod.string(),
-  "email": zod.string(),
-  "password": zod.string()
+  "name": zod.string().min(registerBodyNameMin).max(registerBodyNameMax),
+  "email": zod.string().min(registerBodyEmailMin).max(registerBodyEmailMax),
+  "password": zod.string().min(registerBodyPasswordMin).max(registerBodyPasswordMax).describe('Server additionally enforces a maximum of 72 UTF-8 bytes')
 })
 
 export const RegisterResponse = zod.object({
-  "user": zod.object({
-  "id": zod.number().int(),
-  "name": zod.string(),
-  "email": zod.string(),
-  "role": zod.enum(['citizen', 'contractor', 'je', 'commissioner']),
-  "ward_id": zod.number().int()
-}),
-  "access_token": zod.string()
+  "message": zod.string()
+})
+
+
+export const requestVerificationBodyEmailMin = 3;
+export const requestVerificationBodyEmailMax = 200;
+
+
+
+export const RequestVerificationBody = zod.object({
+  "email": zod.string().min(requestVerificationBodyEmailMin).max(requestVerificationBodyEmailMax)
+})
+
+export const RequestVerificationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const confirmVerificationBodyTokenMin = 43;
+export const confirmVerificationBodyTokenMax = 43;
+
+
+export const confirmVerificationBodyTokenRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const confirmVerificationBodyPasswordMin = 10;
+export const confirmVerificationBodyPasswordMax = 72;
+
+
+
+export const ConfirmVerificationBody = zod.object({
+  "token": zod.string().min(confirmVerificationBodyTokenMin).max(confirmVerificationBodyTokenMax).regex(confirmVerificationBodyTokenRegExp),
+  "password": zod.string().min(confirmVerificationBodyPasswordMin).max(confirmVerificationBodyPasswordMax)
+})
+
+export const ConfirmVerificationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const requestPasswordResetBodyEmailMin = 3;
+export const requestPasswordResetBodyEmailMax = 200;
+
+
+
+export const RequestPasswordResetBody = zod.object({
+  "email": zod.string().min(requestPasswordResetBodyEmailMin).max(requestPasswordResetBodyEmailMax)
+})
+
+export const RequestPasswordResetResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const confirmPasswordResetBodyTokenMin = 43;
+export const confirmPasswordResetBodyTokenMax = 43;
+
+
+export const confirmPasswordResetBodyTokenRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
+export const confirmPasswordResetBodyPasswordMin = 10;
+export const confirmPasswordResetBodyPasswordMax = 72;
+
+
+
+export const ConfirmPasswordResetBody = zod.object({
+  "token": zod.string().min(confirmPasswordResetBodyTokenMin).max(confirmPasswordResetBodyTokenMax).regex(confirmPasswordResetBodyTokenRegExp),
+  "password": zod.string().min(confirmPasswordResetBodyPasswordMin).max(confirmPasswordResetBodyPasswordMax)
+})
+
+export const ConfirmPasswordResetResponse = zod.object({
+  "message": zod.string()
 })
 
 

@@ -8,7 +8,8 @@ Citizen reporting and human-reviewed repair tracking. Public-launch mode has no 
 - Managed API workflow: `artifacts/api-server: API Server`
 - Managed native workflow: `artifacts/mobile: expo` (preview `/mobile/`)
 - `uv sync --frozen` — install locked Python dependencies
-- `uv run python seed.py --init` — development-only, explicit idempotent schema/seed
+- `uv run python seed.py --init` — development-only schema initialization; no accounts or reports
+- `uv run python -m scripts.migrate_account_security` — additive development-only ownership/recovery tables
 - `uv run python -m pytest tests/test_pipeline.py tests/test_api.py -q` — policy tests
 - `pnpm run typecheck` — all TypeScript packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate client contract
@@ -33,12 +34,15 @@ Citizen reporting and human-reviewed repair tracking. Public-launch mode has no 
 
 - Web and native clients use the same existing backend; do not introduce a mobile-only backend.
 - The user explicitly requests custom bcrypt/JWT auth, not Replit Auth.
-- Seeded demo staff accounts are intentionally public; never use them in real municipal operations.
+- Do not reintroduce demo accounts, shared credentials or sample sign-in buttons. Test identities belong only in rolled-back test fixtures.
+- Legacy sample sign-ins are permanently retired; referenced IDs remain non-login historical identities so real reports and audit links stay untouched.
 - Uncertain evidence must always require JE review; never relax this invariant for demos.
 - All valid repair submissions now require human JE review, not only uncertain ones.
 - Detection mode is hard-disabled in live routes and settings. Do not restore AI claims or model calls without a new explicit request.
 - Public evidence photos are private: preserve ticket-scoped authorization and native bearer image headers.
-- Demo account access is disabled by default and always disabled in production. Samples must remain labeled and excluded from live metrics.
+- Legacy sample logins and sessions are always blocked, with no development override. Historical sample records remain labeled and excluded from live metrics.
+- Citizen sign-in requires email ownership; verification/reset completion revokes cookie and native bearer sessions. Staff roles remain operator-owned.
+- Email delivery is disabled until an operator approves/configures a provider. Never log tokens or pretend an email was sent.
 - The live capture UI excludes gallery pickers; metadata is not cryptographic capture attestation.
 - Never run schema creation or seed at application startup or in production build hooks.
 - See `README.md` for setup, demo credentials, verification limitations and acceptance evidence.

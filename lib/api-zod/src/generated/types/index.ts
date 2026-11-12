@@ -6,6 +6,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './accountMessage';
+export * from './accountTokenInput';
 export * from './assignmentInput';
 export * from './authResult';
 export * from './captureInput';
@@ -13,6 +15,7 @@ export * from './captureResult';
 export * from './configuration';
 export * from './configurationDetectorMode';
 export * from './contractor';
+export * from './emailInput';
 export * from './getStatsParams';
 export * from './getTicketsParams';
 export * from './healthStatus';

@@ -17,8 +17,8 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text, func
 from . import config
-from .auth import authenticate, fail, hash_password, user_json, session_response, account_enabled, COOKIE
-from .models import Session, Ward, User, Ticket, Report, Repair, Event, TrafficZone, Settings, utcnow
+from .auth import authenticate, fail, user_json, session_response, account_enabled, verified_for_login, COOKIE
+from .models import Session, Ward, User, AccountSecurity, Ticket, Report, Repair, Event, TrafficZone, Settings, utcnow
 from .views import ticket_json, detail_json, report_json, event_json, columns
 from .storage import save_image, load_image
 from .ai.pipeline import validate_capture, haversine, priority, AnalysisUnavailable
@@ -131,12 +131,9 @@ class Credentials(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=1, max_length=72)
 
-class Registration(Credentials):
-    name: str = Field(min_length=2, max_length=100)
-
 @app.post("/api/auth/login")
 def login(data: Credentials, response: Response, db=Depends(database)):
-    user = db.scalar(select(User).where(User.email == data.email.lower().strip()))
+    user = db.scalar(select(User).where(User.email == data.email.lower().strip()).with_for_update())
     # Invalid email has the same expensive verification path as a bad password.
     hashed = user.password_hash if user else "$2b$12$C6UzMDM.H6dfI/f/IKcEe.1sH0gWKxX7UsaZYF/eFJdEnJrsVEg1y"
     try:
@@ -145,26 +142,13 @@ def login(data: Credentials, response: Response, db=Depends(database)):
         valid = False
     if not user or not valid or not account_enabled(user):
         fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.")
-    return session_response(user, response)
+    security = db.get(AccountSecurity, user.id)
+    if not verified_for_login(user, security):
+        fail(403, "EMAIL_VERIFICATION_REQUIRED", "Verify your email before signing in. Request a verification email below.")
+    return session_response(user, response, security)
 
-@app.post("/api/auth/register")
-def register(data: Registration, response: Response, db=Depends(database)):
-    email = data.email.lower().strip()
-    if email.endswith("@nagardrishti.demo"):
-        fail(422, "RESERVED_EMAIL", "Use your own email address, not a demonstration account.")
-    if len(data.name.strip()) < 2:
-        fail(422, "INVALID_NAME", "Enter a name with at least two non-space characters.")
-    if "@" not in email or "." not in email.rsplit("@", 1)[1]:
-        fail(422, "INVALID_EMAIL", "Enter a valid email address.")
-    if db.scalar(select(User).where(User.email == email)):
-        fail(409, "EMAIL_EXISTS", "An account with that email already exists.")
-    ward = db.scalar(select(Ward).order_by(Ward.id).limit(1))
-    if not ward:
-        fail(503, "SERVICE_NOT_CONFIGURED", "Citizen registration is not yet configured. Please try again later.")
-    user = User(name=data.name.strip(), email=email, password_hash=hash_password(data.password), role="citizen", ward_id=ward.id)
-    db.add(user)
-    db.commit()
-    return session_response(user, response)
+from .account_recovery import install as install_account_recovery
+install_account_recovery(app, database)
 
 @app.post("/api/auth/logout")
 def logout(response: Response):

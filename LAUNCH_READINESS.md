@@ -8,13 +8,18 @@ pothole verifier or an authorized municipal dispatch service.
 ## Implemented
 
 - Citizen registration/login, live photo/GPS reporting and 10 m report grouping remain.
+- Email ownership and recovery use 30-minute single-use codes, digest-only storage,
+  shared account-request quotas and cookie/bearer session revocation. Public role
+  assignment remains citizen-only. Live delivery is not configured.
 - Every valid contractor repair enters engineer review. Only a scoped engineer or
   commissioner can close/reopen it with written notes. No AI, vision fallback,
   ONNX, SSIM or feature-matching call runs in either submission route.
 - Stored detector settings cannot enable inference; current weights and 65% legacy
   constant remain unchanged and inactive.
-- Known demo accounts and their existing JWT sessions are blocked by default;
-  explicit development opt-in cannot activate them in production.
+- Six former sample sign-ins were permanently retired in development. All were
+  referenced by history, so account IDs remain as anonymized, non-login identities.
+  Every existing report, ticket, repair, audit event and real user was preserved.
+  There is no development override. No credentials or sample account seed remain.
 - Sample records are labeled in both clients and public tracking. Live statistics
   exclude them. Engineer-approved counts require an actual recorded approval.
 - Public ticket lists/details hide raw evidence, exact location, contractor
@@ -41,7 +46,7 @@ pothole verifier or an authorized municipal dispatch service.
 | `CORS_ORIGINS` | Only exact trusted HTTPS browser origins if cross-origin access is needed; no wildcard |
 | `EXPO_PUBLIC_API_URL` | Native build's reachable HTTPS API origin, without `/api`; public value, not a credential |
 | `PORT`, `BASE_PATH` | Supplied by managed service configuration |
-| `ALLOW_DEMO_ACCOUNTS` | Leave unset/false for launch; production ignores true |
+| Account email | Operator-approved provider, authorized sender and trusted HTTPS callback origin; not configured |
 | AI provider keys / `DETECTOR_MODE` | Not needed; do not enable the retired AI workflow |
 
 Production settings inspection found database, session and storage secret names
@@ -62,9 +67,9 @@ No schema/seed is run at startup; provision real wards and staff separately.
    a completed policy. Confirm municipal authorization, service area and response
    ownership. No report currently notifies a municipality automatically.
 2. **Production provisioning:** validate the real production database/schema,
-   private storage, separate signing secret and genuine staff accounts. Demo
-   accounts cannot operate a public deployment. Test evidence access against
-   production-like infrastructure before launch; do not copy demo credentials.
+   private storage, separate signing secret and genuine staff accounts. Test
+   evidence access against production-like infrastructure before launch. Sample
+   sign-in removal was applied to development only; production data was not modified.
 3. **Native configuration/device acceptance:** configure the native HTTPS API
    origin, rebuild, and perform genuine iOS/Android camera, denied permissions,
    GPS, upload/retry, private-image and SecureStore checks. Browser checks cannot
@@ -82,21 +87,34 @@ No schema/seed is run at startup; provision real wards and staff separately.
    monitoring, backup/restore and incident ownership. Current limiter is
    per-process; browser camera metadata is not capture attestation. Configure
    HTTPS/public access and trusted origins when the owner authorizes publishing.
-6. **Account recovery:** no email ownership verification or password-reset
-   workflow is implemented. Decide and implement the public account-support
-   process; never grant staff roles via public registration.
+6. **Account email delivery:** verification and recovery policy/UI are implemented,
+   but the integration offer was dismissed. No provider was connected, no email was
+   sent, and live email requests fail explicitly while unconfigured. Approve a
+   provider, configure authenticated delivery plus an authorized sender and trusted
+   HTTPS web origin, then verify real inbox delivery and both web/native flows.
+   Background delivery currently has no durable retry queue; provider failures
+   are logged without personal data. Establish delivery monitoring and retries.
 
 ## Verification boundaries
 
-Run `uv run python -m pytest tests/test_pipeline.py tests/test_api.py tests/test_launch.py -q`
+Current ownership/recovery and account-removal checks: **47 Python policy tests
+passed**, workspace TypeScript checks passed, and both public sign-in screens
+rendered at phone width. Tests cover expired/reused/replaced codes, role protection,
+unconfigured email, TLS adapter behavior, and revocation of cookie/bearer sessions.
+Development cleanup left zero legacy sample-email sign-ins, six non-login historical
+identities and all 70 reports intact. No real account was modified. These checks
+do not prove live inbox delivery or physical-device behavior.
+
+Run `uv run python -m pytest tests/test_pipeline.py tests/test_api.py tests/test_launch.py tests/test_account_recovery.py -q`
 for capture, dedup, role, private-photo, disabled-AI and human-review regressions.
 These use transaction rollback and storage doubles; no test data is committed.
 Typechecks/builds and browser evidence are reported in the handoff separately.
-Observed checks: all 40 Python tests, 10 mobile policy/transport tests, workspace
+Earlier launch-review checks (not all re-run in this task): 10 mobile policy/transport tests,
+workspace
 TypeScript checks and the web production build passed. Nine targeted static-server
 containment/escaping checks passed. Browser registration, cookie restoration,
 camera-unavailable messaging, public tracking/privacy and immediate logout passed.
-An initial 360 px overflow was corrected and rechecked: document/body widths
+An earlier 360 px overflow was corrected and rechecked: document/body widths
 were 345 px within a 360 px viewport (15 px vertical scrollbar). Wide tables now
 scroll inside their own panels, not the page. No real camera/photo/GPS capture or
 physical-device acceptance was claimed.

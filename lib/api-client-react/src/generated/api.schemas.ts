@@ -15,9 +15,48 @@ export interface LoginInput {
 }
 
 export interface RegistrationInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
   name: string;
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
   email: string;
+  /**
+     * Server additionally enforces a maximum of 72 UTF-8 bytes
+     * @minLength 10
+     * @maxLength 72
+     */
   password: string;
+}
+
+export interface EmailInput {
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  email: string;
+}
+
+export interface AccountTokenInput {
+  /**
+     * @minLength 43
+     * @maxLength 43
+     * @pattern ^[A-Za-z0-9_-]{43}$
+     */
+  token: string;
+  /**
+     * @minLength 10
+     * @maxLength 72
+     */
+  password: string;
+}
+
+export interface AccountMessage {
+  message: string;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];

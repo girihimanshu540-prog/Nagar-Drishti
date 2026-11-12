@@ -46,7 +46,7 @@ See [mobile setup and device acceptance](artifacts/mobile/README.md).
 | `artifacts/api-server/` | Managed service launcher for the Python API |
 | `lib/api-spec/openapi.yaml` | Web-client API contract |
 | `lib/api-client-react/` | Generated React Query hooks |
-| `seed.py` | Explicit, idempotent development-only schema/data initialization |
+| `seed.py` | Explicit development-only schema initialization, without account or report seeding |
 | `tests/` | Policy tests and optional deployment smoke runner |
 
 ## Setup
@@ -92,13 +92,11 @@ Never commit real secret values.
 | `DATABASE_URL` | PostgreSQL connection, provided by the project database |
 | `SESSION_SECRET` | Required secret for JWT signatures; use a high-entropy value |
 | `APP_ENV` | Set `production` for launch safeguards (production NODE_ENV also activates them) |
-| `ALLOW_DEMO_ACCOUNTS` | Default false; optional explicit development-only demo access; ignored in production |
 | `DETECTOR_MODE` | Ignored; runtime settings force `disabled` even if stored settings say otherwise |
 | AI/vision credentials | Not required or used by public-launch reporting and repair routes |
 | `PRIVATE_OBJECT_DIR` | Managed App Storage bucket/prefix for evidence |
 | `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | Managed App Storage bucket |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | Managed public storage prefixes |
-| `DEMO_CENTER_LAT` / `DEMO_CENTER_LNG` | Seed center, defaults `18.5204` / `73.8567` (Pune) |
 | `CORS_ORIGINS` | Optional comma-separated allowed browser origins |
 | `EXPO_PUBLIC_API_URL` | Public API origin for Expo; no `/api` suffix; must be reachable from the phone |
 | `PORT` / `BASE_PATH` | Injected by the managed workflows |
@@ -106,32 +104,50 @@ Never commit real secret values.
 No live submission route invokes an AI provider. Existing AI secrets do not enable
 detection. No live endpoint substitutes seed data or test results.
 
-## Demo accounts
+## Account provisioning and recovery
 
-These accounts are deliberately public evaluation accounts, **not production credentials**.
-All use password **`NagarDemo2026!`**.
+No shared login credentials or sample sign-in buttons are provided. `seed.py --init`
+creates missing development tables only: no accounts, wards, traffic zones or reports.
+Provision genuine wards and staff through an operator-controlled process. Public
+registration creates citizens only; unknown/duplicate email requests return the same
+message. Citizens must prove email ownership before sign-in, including legacy accounts.
 
-| Role | Email |
-|---|---|
-| Citizen | `citizen@nagardrishti.demo` |
-| Contractor | `contractor@nagardrishti.demo` |
-| Junior Engineer | `je@nagardrishti.demo` |
-| Commissioner | `commissioner@nagardrishti.demo` |
-| Contractor 2 | `contractor5@nagardrishti.demo` |
-| Contractor 3 | `contractor6@nagardrishti.demo` |
+Verification and password reset use 30-minute single-use codes, stored only as SHA-256
+digests. Requesting a replacement invalidates the previous code of that kind. Completion
+invalidates every outstanding code and all existing cookie/bearer sessions, then requires
+fresh sign-in. The owner chooses the final password during verification to prevent
+pre-registered accounts retaining someone else's chosen password.
 
-Public demo credential selectors have been removed. These accounts and existing
-demo sessions are blocked by default. They are only usable in explicitly opted-in
-development or isolated tests; production always blocks them.
-Anonymous users only receive read-only public access. Never expose these seeded privileged
-accounts in a real municipal deployment: use a fresh production database and provision
-authorized staff securely. Public registration always creates a citizen, never staff.
-Staff account provisioning is an operational setup step, not a public registration endpoint.
+Both sign-in screens offer recovery and verification requests plus code entry. Web
+email links carry the code in a fragment, removed on load; opening a link never consumes
+it. Native users can enter the email code in the app or finish on the web and sign in
+on their phone. Native SecureStore and bearer transport remain unchanged.
 
-The demo images were generated for this project. Seed scores, boxes and outcomes are
-illustrative and explicitly labeled, not measurements. Real repair submission against
-synthetic seed evidence is blocked. JE decisions on demo review tickets can be explored
-and are audited, but remain demonstration decisions.
+**Email delivery is not enabled.** The integration offer was dismissed; no provider
+was connected and no messages were sent. Requests return `503 EMAIL_UNAVAILABLE`
+until an operator explicitly approves and configures a provider. A vendor-neutral
+SMTP adapter is available for that later setup; it requires authenticated TLS on port
+587 and never falls back to plaintext, token logs, local mail files or fake success.
+Delivery runs after the HTTP response to avoid exposing account existence through
+provider latency; provider errors are logged without personal data and require operator
+attention. The request response deliberately does not claim delivery.
+
+Future operator configuration (use secure workspace secrets for credentials):
+`ACCOUNT_EMAIL_APPROVED=true`, `ACCOUNT_PUBLIC_ORIGIN` (trusted HTTPS web origin),
+`ACCOUNT_SMTP_HOST`, `ACCOUNT_SMTP_USERNAME`, `ACCOUNT_SMTP_PASSWORD`, and
+`ACCOUNT_EMAIL_FROM` (authorized sender). Do not enable delivery before operator
+approval and end-to-end delivery checks. No provider credentials belong in clients.
+
+Apply additive development tables explicitly with
+`uv run python -m scripts.migrate_account_security`; never run schema DDL at startup
+or in a build. Production schema changes follow the managed Publish review when
+publishing is authorized, not this development-only script.
+
+`uv run python -m scripts.retire_demo_accounts` permanently removes legacy sample
+sign-ins in development. Referenced account IDs are retained only as anonymized,
+non-login historical identities, preserving all reports and audit links. Unreferenced
+sample account rows are deleted. The cleanup never modifies real accounts or reports.
+Legacy sample reports remain labeled and excluded from live metrics.
 
 ## API
 
@@ -238,7 +254,7 @@ Optional deployment smoke runner:
 uv run python tests/e2e.py --base-url https://YOUR_VERIFIED_HOST
 ```
 
-This script checks public reads, photo redaction and rejected demo logins; it is **not** a full camera E2E test and
+This script checks public reads and photo redaction without using account credentials; it is **not** a full camera E2E test and
 has not been run as a first-build browser test.
 
 ## Publishing

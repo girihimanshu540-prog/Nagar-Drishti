@@ -32,6 +32,25 @@ class User(Base):
     ward_id: Mapped[int] = mapped_column(ForeignKey("wards.id"))
     company: Mapped[str] = mapped_column(String(150), default="")
 
+class AccountSecurity(Base):
+    __tablename__ = "account_security"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    session_version: Mapped[int] = mapped_column(Integer, default=0)
+
+class AccountToken(Base):
+    __tablename__ = "account_tokens"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(20))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+class AuthThrottle(Base):
+    __tablename__ = "auth_throttles"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    count: Mapped[int] = mapped_column(Integer)
+
 class Ticket(Base):
     __tablename__ = "tickets"
     id: Mapped[str] = mapped_column(String(30), primary_key=True)

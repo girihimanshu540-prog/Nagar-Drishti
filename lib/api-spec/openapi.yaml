@@ -39,10 +39,66 @@ paths:
             schema: { $ref: "#/components/schemas/RegistrationInput" }
       responses:
         "200":
-          description: Registered citizen
+          description: Enumeration-safe verification request; no session issued
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/AuthResult" }
+              schema: { $ref: "#/components/schemas/AccountMessage" }
+  /auth/verification/request:
+    post:
+      operationId: requestVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmailInput" }
+      responses:
+        "200":
+          description: Same response for unknown, verified and unverified accounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountMessage" }
+  /auth/verification/confirm:
+    post:
+      operationId: confirmVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountTokenInput" }
+      responses:
+        "200":
+          description: Ownership verified, password set; sign in separately
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountMessage" }
+  /auth/password/request:
+    post:
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EmailInput" }
+      responses:
+        "200":
+          description: Enumeration-safe recovery request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountMessage" }
+  /auth/password/confirm:
+    post:
+      operationId: confirmPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountTokenInput" }
+      responses:
+        "200":
+          description: Password changed and existing sessions revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountMessage" }
   /auth/logout:
     post:
       operationId: logout
@@ -256,10 +312,29 @@ components:
     RegistrationInput:
       type: object
       required: [name, email, password]
+      additionalProperties: false
       properties:
-        name: { type: string }
-        email: { type: string }
-        password: { type: string }
+        name: { type: string, minLength: 2, maxLength: 100 }
+        email: { type: string, minLength: 3, maxLength: 200 }
+        password: { type: string, minLength: 10, maxLength: 72, description: Server additionally enforces a maximum of 72 UTF-8 bytes }
+    EmailInput:
+      type: object
+      required: [email]
+      additionalProperties: false
+      properties:
+        email: { type: string, minLength: 3, maxLength: 200 }
+    AccountTokenInput:
+      type: object
+      required: [token, password]
+      additionalProperties: false
+      properties:
+        token: { type: string, minLength: 43, maxLength: 43, pattern: '^[A-Za-z0-9_-]{43}$' }
+        password: { type: string, minLength: 10, maxLength: 72 }
+    AccountMessage:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
     User:
       type: object
       required: [id, name, email, role, ward_id]

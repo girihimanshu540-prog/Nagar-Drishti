@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.12"]
+modules = ["nodejs-24", "python-3.12", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -28,3 +28,6 @@ packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg"
 [userenv.development]
 EXPO_PUBLIC_API_URL = "https://7568e892-51e3-4492-86a8-30ac1403c107-00-29oizat6x5tv0.pike.replit.dev"
 CORS_ORIGINS = "https://7568e892-51e3-4492-86a8-30ac1403c107-00-29oizat6x5tv0.expo.pike.replit.dev"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-6165da74-7e8e-4344-9e34-67ad168ff176"

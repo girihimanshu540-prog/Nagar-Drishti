@@ -5,7 +5,7 @@ import bcrypt
 import jwt
 from fastapi import Request, HTTPException, Response
 from sqlalchemy import select
-from .models import User, utcnow
+from .models import User, AccountSecurity, utcnow
 from . import config
 
 SECRET = os.environ["SESSION_SECRET"]
@@ -14,7 +14,8 @@ if config.PRODUCTION and len(SECRET.encode()) < 32:
 COOKIE = "nagardrishti_session"
 
 def account_enabled(user):
-    return config.ALLOW_DEMO_ACCOUNTS or not user.email.lower().endswith("@nagardrishti.demo")
+    return (not user.email.lower().endswith("@nagardrishti.demo")
+            and user.password_hash != "!disabled")
 
 def fail(status, code, message):
     raise HTTPException(status, detail={"code": code, "message": message})
@@ -27,6 +28,11 @@ def hash_password(password):
 def user_json(u):
     return {k: getattr(u, k) for k in ("id", "name", "email", "role", "ward_id")}
 
+def verified_for_login(user, security):
+    # Staff are provisioned by operators, never by public registration.
+    return (user.role != "citizen"
+            or (security is not None and security.email_verified))
+
 def authenticate(request: Request, db, roles=None, optional=False):
     token = request.cookies.get(COOKIE)
     header = request.headers.get("authorization", "")
@@ -37,6 +43,9 @@ def authenticate(request: Request, db, roles=None, optional=False):
         user = db.get(User, int(claims["sub"]))
         if not user or not account_enabled(user):
             raise ValueError("Unknown user")
+        security = db.get(AccountSecurity, user.id)
+        if claims.get("sv", 0) != (security.session_version if security else 0) or not verified_for_login(user, security):
+            raise ValueError("Revoked or unverified session")
     except (jwt.PyJWTError, ValueError, KeyError):
         if optional:
             return None
@@ -45,8 +54,9 @@ def authenticate(request: Request, db, roles=None, optional=False):
         fail(403, "ROLE_FORBIDDEN", "Your role cannot perform this action.")
     return user
 
-def session_response(user, response: Response):
-    token = jwt.encode({"sub": str(user.id), "iss": "nagardrishti", "exp": utcnow() + timedelta(hours=12)}, SECRET, algorithm="HS256")
+def session_response(user, response: Response, security=None):
+    token = jwt.encode({"sub": str(user.id), "iss": "nagardrishti", "sv": security.session_version if security else 0,
+                        "exp": utcnow() + timedelta(hours=12)}, SECRET, algorithm="HS256")
     response.set_cookie(COOKIE, token, httponly=True, secure=True, samesite="lax", max_age=43200, path="/")
     response.headers["Cache-Control"] = "no-store"
     return {"user": user_json(user), "access_token": token}

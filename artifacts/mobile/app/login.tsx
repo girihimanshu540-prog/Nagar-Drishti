@@ -10,6 +10,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/providers/AuthProvider';
 import { errorMessage } from '@/lib/client';
 import { privacyUrl } from '@/lib/config';
+import { AccountRecovery } from '@/components/AccountRecovery';
 
 export default function LoginScreen() {
   const c = useColors(); const insets = useSafeAreaInsets(); const bottom = useBottomSpace();
@@ -54,6 +55,7 @@ export default function LoginScreen() {
     </View>
     {error ? <Notice danger>{error}</Notice> : null}
     <Button title="Sign in" icon="arrow-right" testID="login-submit" busy={busy} onPress={() => void submit()} />
+    <AccountRecovery />
     <View style={{ gap: 12, borderTopWidth: 1, borderColor: c.border, paddingTop: 20 }}>
       <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20 }}>Not an official municipal service. Reports are unverified until staff review them; repairs close only after a junior engineer approves. No AI detection is used. New citizens can register on the web app.</Text>
       {privacyUrl ? <Button title="Privacy notice" icon="shield" secondary testID="login-privacy"

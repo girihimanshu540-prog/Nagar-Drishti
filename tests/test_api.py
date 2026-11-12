@@ -17,6 +17,7 @@ from api.main import app, database
 from api.models import engine, Ticket, Event, utcnow
 import api.main as routes
 from api import config
+from account_fixtures import provision, TEST_PASSWORD
 
 @pytest.fixture
 def isolated(monkeypatch):
@@ -26,8 +27,7 @@ def isolated(monkeypatch):
     def override():
         yield db
     app.dependency_overrides[database] = override
-    # Explicit development-only fixture; the running service blocks demo logins.
-    monkeypatch.setattr(config, "ALLOW_DEMO_ACCOUNTS", True)
+    provision(db)
     monkeypatch.setattr(routes, "hits", defaultdict(deque))
     def forbidden_analysis(*args, **kwargs):
         raise AssertionError("Launch workflows must not run any AI or image comparison.")
@@ -45,7 +45,7 @@ def isolated(monkeypatch):
     connection.close()
 
 def login(client, role):
-    res = client.post("/api/auth/login", json={"email":role+"@nagardrishti.demo","password":"NagarDemo2026!"})
+    res = client.post("/api/auth/login", json={"email":role+"@policy.invalid","password":TEST_PASSWORD})
     assert res.status_code == 200, res.text
     return res.json()
 

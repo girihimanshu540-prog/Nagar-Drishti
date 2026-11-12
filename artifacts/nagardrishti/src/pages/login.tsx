@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, Eye, LogIn, UserPlus } from 'lucide-react';
 import { useLogin, useRegister, type AuthResult } from '@workspace/api-client-react';
 import { useResetSession, errMsg } from '@/lib/core';
+import { AccountRecovery } from '@/components/AccountRecovery';
 
 export default function Login() {
   const [, nav] = useLocation();
@@ -11,9 +12,10 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [notice, setNotice] = useState('');
   const done = async (r: AuthResult) => { await reset(r.user); nav(r.user.role === 'citizen' ? '/report' : r.user.role === 'je' ? '/reviews' : r.user.role === 'contractor' ? '/tickets' : '/'); };
   const login = useLogin({ mutation: { onSuccess: done } });
-  const register = useRegister({ mutation: { onSuccess: done } });
+  const register = useRegister({ mutation: { onSuccess: (r) => { setNotice(r.message); setPassword(''); } } });
   const pending = login.isPending || register.isPending;
   const error = login.error ?? register.error;
   const inp = 'min-h-[44px] w-full rounded-sm border border-input bg-background px-3 py-2 text-base sm:text-sm outline-none transition-colors focus:border-primary';
@@ -36,17 +38,20 @@ export default function Login() {
         <div className="rise w-full max-w-md">
           <Link href="/" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground lg:hidden"><ArrowLeft className="h-4 w-4" />Public overview</Link>
           <div className="mb-5 flex rounded-sm border border-border p-0.5">
-            {(['login', 'register'] as const).map((m) => <button key={m} data-testid={`button-mode-${m}`} onClick={() => { setMode(m); login.reset(); register.reset(); }} className={`min-h-[40px] flex-1 rounded-sm py-1.5 text-sm transition-colors ${mode === m ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}>{m === 'login' ? 'Sign in' : 'Citizen registration'}</button>)}
+            {(['login', 'register'] as const).map((m) => <button key={m} disabled={pending} data-testid={`button-mode-${m}`} onClick={() => { setMode(m); setNotice(''); login.reset(); register.reset(); }} className={`min-h-[40px] flex-1 rounded-sm py-1.5 text-sm transition-colors ${mode === m ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}>{m === 'login' ? 'Sign in' : 'Citizen registration'}</button>)}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); if (mode === 'login') login.mutate({ data: { email, password } }); else register.mutate({ data: { name, email, password } }); }} className="space-y-3">
             {mode === 'register' && <input data-testid="input-name" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Full name" autoComplete="name" className={inp} />}
             <input data-testid="input-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email" className={inp} />
-            <input data-testid="input-password" type="password" required minLength={mode === 'register' ? 8 : 1} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" className={inp} />
+            <input data-testid="input-password" type="password" required minLength={mode === 'register' ? 10 : 1} maxLength={72} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" className={inp} />
+            {mode === 'register' && <p className="text-xs text-muted-foreground">Use 10–72 bytes. Email verification is required before sign-in. You will choose your final password when verifying.</p>}
+            {notice && <p role="status" data-testid="registration-notice" className="text-sm">{notice}</p>}
             {error && <div data-testid="text-auth-error" className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-rose-200">{errMsg(error)}</div>}
             <button data-testid="button-submit-auth" disabled={pending} className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-sm bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-transform active:scale-[.98] disabled:opacity-60">
               {mode === 'login' ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}{pending ? 'Please wait' : mode === 'login' ? 'Sign in' : 'Create citizen account'}
             </button>
           </form>
+          <AccountRecovery />
 
           <p data-testid="text-auth-notice" className="mt-5 text-xs leading-relaxed text-muted-foreground">
             {mode === 'register' ? 'By creating an account you agree that your name, email, and the photos and precise GPS you submit are stored and shared with authorised staff. ' : ''}
