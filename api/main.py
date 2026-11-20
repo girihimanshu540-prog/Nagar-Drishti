@@ -22,6 +22,7 @@ from . import config
 from .auth import authenticate, fail, user_json, session_response, account_enabled, COOKIE
 from .models import Session, Ward, User, AccountSecurity, Ticket, Report, Repair, Event, TrafficZone, Settings, utcnow
 from .account_email_outbox import status_summary, worker_loop
+from .account_recovery import install as install_account_recovery, throttle_login
 from .views import ticket_json, detail_json, report_json, event_json, columns
 from .storage import save_image, load_image
 from .ai.pipeline import validate_capture, haversine, priority, AnalysisUnavailable
@@ -58,18 +59,21 @@ async def security(request, call_next):
     if request.method in ("POST", "PUT", "DELETE", "PATCH") and not bearer:
         if (origin and urlparse(origin).netloc != request.headers.get("host") and origin not in origins) or (not origin and request.headers.get("sec-fetch-site") == "cross-site"):
             return JSONResponse({"error": {"code": "ORIGIN_FORBIDDEN", "message": "Cross-site requests are not allowed."}}, 403)
-    ip = request.client.host if request.client else "unknown"
-    key = (ip, "auth" if "/auth/" in request.url.path else "read" if request.method == "GET" else "write")
-    now = time.monotonic()
-    if key not in hits and len(hits) >= 10000:
-        hits.pop(next(iter(hits)))
-    queue = hits[key]
-    while queue and queue[0] < now-60:
-        queue.popleft()
-    limit = {"auth": 20, "read": 500, "write": 20}[key[1]]
-    if len(queue) >= limit:
-        return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "Too many requests. Please wait one minute."}}, 429, headers={"Retry-After": "60"})
-    queue.append(now)
+    # Login quotas are shared and atomic in PostgreSQL; do not retain a weaker
+    # per-process login limiter that workers can independently exhaust.
+    if request.url.path != "/api/auth/login":
+        ip = request.client.host if request.client else "unknown"
+        key = (ip, "auth" if "/auth/" in request.url.path else "read" if request.method == "GET" else "write")
+        now = time.monotonic()
+        if key not in hits and len(hits) >= 10000:
+            hits.pop(next(iter(hits)))
+        queue = hits[key]
+        while queue and queue[0] < now-60:
+            queue.popleft()
+        limit = {"auth": 20, "read": 500, "write": 20}[key[1]]
+        if len(queue) >= limit:
+            return JSONResponse({"error": {"code": "RATE_LIMITED", "message": "Too many requests. Please wait one minute."}}, 429, headers={"Retry-After": "60"})
+        queue.append(now)
     size = request.headers.get("content-length", "0")
     if size.isdigit() and int(size) > config.MAX_IMAGE_BYTES + 65536:
         return JSONResponse({"error": {"code": "IMAGE_TOO_LARGE", "message": "Images must not exceed 8 MB."}}, 413)
@@ -147,20 +151,25 @@ class Credentials(BaseModel):
     password: str = Field(min_length=1, max_length=72)
 
 @app.post("/api/auth/login")
-def login(data: Credentials, response: Response, db=Depends(database)):
-    user = db.scalar(select(User).where(User.email == data.email.lower().strip()).with_for_update())
+def login(data: Credentials, request: Request, response: Response, db=Depends(database)):
+    email = data.email.lower().strip()
+    network_limited, target_limited = throttle_login(db, request, email)
+    if network_limited:
+        fail(429, "RATE_LIMITED", "Too many sign-in attempts. Please wait before trying again.")
+    user = db.scalar(select(User).where(User.email == email).with_for_update())
     # Invalid email has the same expensive verification path as a bad password.
     hashed = user.password_hash if user else "$2b$12$C6UzMDM.H6dfI/f/IKcEe.1sH0gWKxX7UsaZYF/eFJdEnJrsVEg1y"
     try:
         valid = bcrypt.checkpw(data.password.encode(), hashed.encode())
     except ValueError:
         valid = False
+    if target_limited and (not user or not valid or not account_enabled(user)):
+        fail(429, "RATE_LIMITED", "Too many sign-in attempts. Please wait before trying again.")
     if not user or not valid or not account_enabled(user):
         fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.")
     security = db.get(AccountSecurity, user.id)
     return session_response(user, response, security)
 
-from .account_recovery import install as install_account_recovery
 install_account_recovery(app, database)
 
 @app.post("/api/auth/logout")

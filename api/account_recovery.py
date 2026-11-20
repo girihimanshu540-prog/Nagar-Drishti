@@ -14,6 +14,8 @@ from .account_email_outbox import enqueue
 
 REGISTER_MESSAGE = {"message": "If the account is eligible, you can sign in with the submitted credentials."}
 RESET_MESSAGE = {"message": "If the account is eligible, password reset instructions have been requested."}
+LOGIN_NETWORK_LIMIT = 20
+LOGIN_TARGET_NETWORK_LIMIT = 10
 router = APIRouter(prefix="/api/auth")
 
 
@@ -59,6 +61,32 @@ def throttle(db, request, email=None):
             fail(429, "RATE_LIMITED", "Too many account requests. Try again in 15 minutes.")
     # Quotas must survive invalid tokens, SMTP configuration errors and rollback.
     db.commit()
+
+
+def throttle_login(db, request, email):
+    """Shared login quotas; store only keyed digests, never account or network text."""
+    now = utcnow()
+    network = request.client.host if request.client else "unknown"
+    normalized_email = email.lower().strip()
+    network_bucket = int(now.timestamp()) // 60
+    target_bucket = int(now.timestamp()) // 900
+    targets = (
+        (f"login-network:{network_bucket}:{network}", now + timedelta(minutes=2)),
+        (f"login-target-network:{target_bucket}:{normalized_email}:{network}", now + timedelta(minutes=16)),
+    )
+    db.execute(delete(AuthThrottle).where(AuthThrottle.expires_at <= now))
+    counts = []
+    for target, expires_at in targets:
+        key = hmac.new(SECRET.encode(), target.encode(), hashlib.sha256).hexdigest()
+        stmt = insert(AuthThrottle).values(key=key, count=1, expires_at=expires_at)
+        count = db.scalar(stmt.on_conflict_do_update(
+            index_elements=[AuthThrottle.key],
+            set_={"count": AuthThrottle.count + 1},
+        ).returning(AuthThrottle.count))
+        counts.append(count)
+    # Commit before checking the result: denied attempts count across workers and restarts.
+    db.commit()
+    return counts[0] > LOGIN_NETWORK_LIMIT, counts[1] > LOGIN_TARGET_NETWORK_LIMIT
 
 
 def security_row(db, user):

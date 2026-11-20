@@ -1,12 +1,14 @@
 """Signup, sign-in and durable password-reset policy tests; no live email is sent."""
 import hashlib
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import pytest
+from fastapi import FastAPI
 from sqlalchemy import select, func
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from api import account_email
-from api.main import app
+from api.main import app, database, login as login_route
+from api import account_recovery
 from api.models import (
     AccountEmailOutbox, User, AccountSecurity, AccountToken, AuthThrottle,
     Report, Ticket, Repair, Event, utcnow,
@@ -39,6 +41,18 @@ def register(client, **changes):
         "name": "Account Policy Test", "email": "new-owner@policy.invalid",
         "password": TEST_PASSWORD, **changes,
     })
+
+
+def login_worker(db, ip):
+    """Independent ASGI app instance sharing only the database-backed limiter."""
+    worker = FastAPI()
+    worker.add_api_route("/api/auth/login", login_route, methods=["POST"])
+
+    def provide_db():
+        yield db
+
+    worker.dependency_overrides[database] = provide_db
+    return TestClient(worker, base_url="https://testserver", client=(ip, 50000))
 
 
 def queued_token(db, user_id):
@@ -104,12 +118,81 @@ def test_login_rate_limit_and_session_version_protection_remain(isolated):
     row.session_version += 1
     db.flush()
     assert client.get("/api/me").status_code == 401
-    for _ in range(20):
-        response = client.post("/api/auth/login", json={"email": "absent@policy.invalid", "password": TEST_PASSWORD})
-        if response.status_code == 429:
-            break
+    for attempt in range(19):
+        response = client.post("/api/auth/login", json={
+            "email": f"absent{attempt}@policy.invalid", "password": TEST_PASSWORD,
+        })
+        assert response.status_code == 401
+    response = client.post("/api/auth/login", json={
+        "email": "another-absent@policy.invalid", "password": TEST_PASSWORD,
+    })
     assert response.status_code == 429
     assert client.post("/api/auth/login", json={"email": "citizen@policy.invalid", "password": TEST_PASSWORD}).status_code == 429
+
+
+def test_login_target_quota_is_shared_but_cannot_lock_out_the_account(isolated, monkeypatch):
+    _, db, _ = isolated
+    fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(account_recovery, "utcnow", lambda: fixed_now)
+    monkeypatch.setattr("api.main.bcrypt.checkpw", lambda password, hashed: password.decode() == TEST_PASSWORD)
+    payload = {"email": "CITIZEN@policy.invalid", "password": "WrongPassword2026!"}
+
+    with login_worker(db, "203.0.113.10") as worker_a, login_worker(db, "203.0.113.10") as worker_b:
+        known = worker_a.post("/api/auth/login", json=payload)
+        unknown = worker_b.post("/api/auth/login", json={
+            "email": "unknown@policy.invalid", "password": payload["password"],
+        })
+        assert known.status_code == unknown.status_code == 401
+        assert known.json() == unknown.json()
+        for _ in range(4):
+            assert worker_a.post("/api/auth/login", json=payload).status_code == 401
+        payload["email"] = " citizen@policy.invalid "
+        for _ in range(5):
+            assert worker_b.post("/api/auth/login", json=payload).status_code == 401
+
+        # A fresh worker sees the shared target counter, but a correct password
+        # remains usable so an attacker cannot lock the account by guessing.
+        payload["password"] = "WrongPassword2026!"
+        assert worker_a.post("/api/auth/login", json=payload).status_code == 429
+        payload["password"] = TEST_PASSWORD
+        allowed = worker_b.post("/api/auth/login", json=payload)
+        assert allowed.status_code == 200
+        assert allowed.json()["user"]["role"] == "citizen"
+
+    # A different client network gets an independent target budget.
+    payload["password"] = "WrongPassword2026!"
+    with login_worker(db, "203.0.113.11") as another_network:
+        assert another_network.post("/api/auth/login", json=payload).status_code == 401
+
+    keys = db.scalars(select(AuthThrottle.key)).all()
+    assert keys and all(len(key) == 64 for key in keys)
+    assert all("citizen@policy.invalid" not in key and "203.0.113." not in key for key in keys)
+
+
+def test_login_network_quota_is_shared_across_workers_and_restart(isolated, monkeypatch):
+    _, db, _ = isolated
+    fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(account_recovery, "utcnow", lambda: fixed_now)
+    monkeypatch.setattr("api.main.bcrypt.checkpw", lambda *_: False)
+    payload = {"password": "WrongPassword2026!"}
+
+    with login_worker(db, "198.51.100.24") as worker_a, login_worker(db, "198.51.100.24") as worker_b:
+        for attempt in range(10):
+            assert worker_a.post("/api/auth/login", json={
+                **payload, "email": f"absent-a-{attempt}@policy.invalid",
+            }).status_code == 401
+        for attempt in range(10):
+            assert worker_b.post("/api/auth/login", json={
+                **payload, "email": f"absent-b-{attempt}@policy.invalid",
+            }).status_code == 401
+
+    # A newly-created app instance models a restarted worker. The network
+    # quota is persisted, not reset with that process.
+    with login_worker(db, "198.51.100.24") as restarted_worker:
+        response = restarted_worker.post("/api/auth/login", json={
+            **payload, "email": "after-restart@policy.invalid",
+        })
+    assert response.status_code == 429
 
 
 def test_password_requests_stay_enumeration_safe_and_queue_encrypted_data(isolated, email_configured):

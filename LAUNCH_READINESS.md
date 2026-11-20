@@ -83,10 +83,11 @@ No schema/seed is run at startup; provision real wards and staff separately.
    Initial scanner findings from obsolete requirements bounds must not be
    mistaken for installed Python versions: installed PyJWT 2.15.1, certifi
    2026.10.23, httpx2/httpcore2 2.16.0 exceed the reported fixes.
-5. **Public-operation safeguards:** establish shared/edge abuse limiting,
-   monitoring, backup/restore and incident ownership. Current limiter is
-   per-process; browser camera metadata is not capture attestation. Configure
-   HTTPS/public access and trusted origins when the owner authorizes publishing.
+5. **Public-operation safeguards:** sign-in attempts now use shared atomic
+   PostgreSQL quotas. Shared/edge abuse limiting for general API reads and writes,
+   monitoring, backup/restore and incident ownership remain to be established.
+   Browser camera metadata is not capture attestation. Configure HTTPS/public access
+   and trusted origins when the owner authorizes publishing.
 6. **Account email delivery:** citizen signup and sign-in no longer require email
    verification; the submitted email address is not proof of identity. No provider
    is connected, no email was sent, and password-reset requests fail explicitly while

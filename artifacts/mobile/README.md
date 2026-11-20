@@ -121,8 +121,9 @@ Observed during this addition:
 
 - Workspace TypeScript checks passed; the final mobile-specific check passed.
 - All 14 client policy/transport/signup-flow tests passed.
-- All 62 backend policy/API tests passed, including citizen signup/sign-in,
-  role restrictions, password-reset queue retries and session revocation, plus separate bearer-only and
+- All 64 backend policy/API tests passed, including shared login quotas across
+  worker/restart simulations, citizen signup/sign-in, role restrictions,
+  password-reset queue retries and session revocation, plus separate bearer-only and
   cookie-authenticated sessions. New reports reach web list/detail/public reads,
   and a wrong-location repair remains assigned with its rejection audit event
   visible to web reads, each in under 15 seconds. These isolated tests use

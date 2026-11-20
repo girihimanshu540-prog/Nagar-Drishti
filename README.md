@@ -160,7 +160,9 @@ and excluded from live metrics.
 - Native clients may send `Authorization: Bearer <access_token>` from login.
 - Web uses same-origin secure HTTP-only session cookies.
 - Uploads are multipart JPEG/PNG/WebP, maximum 8 MB; decoded size is limited to 25 MP.
-- Basic per-process rate limiting protects auth and mutation requests.
+- Sign-in uses shared atomic PostgreSQL quotas per client IP and normalized
+  account-plus-IP pair. Targets are HMACed, and a correct password is not blocked
+  by the account-specific quota. General read/write request limits remain per process.
 
 For the native client, set `EXPO_PUBLIC_API_URL` to the existing API's reachable HTTPS
 origin before starting/bundling Expo, without `/api`. The current development
