@@ -39,35 +39,7 @@ paths:
             schema: { $ref: "#/components/schemas/RegistrationInput" }
       responses:
         "200":
-          description: Enumeration-safe verification request; no session issued
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AccountMessage" }
-  /auth/verification/request:
-    post:
-      operationId: requestVerification
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/EmailInput" }
-      responses:
-        "200":
-          description: Same response for unknown, verified and unverified accounts
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AccountMessage" }
-  /auth/verification/confirm:
-    post:
-      operationId: confirmVerification
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/AccountTokenInput" }
-      responses:
-        "200":
-          description: Ownership verified, password set; sign in separately
+          description: Enumeration-safe citizen registration result; client signs in with the submitted credentials
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AccountMessage" }
@@ -99,6 +71,15 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AccountMessage" }
+  /ops/account-email:
+    get:
+      operationId: getAccountEmailStatus
+      responses:
+        "200":
+          description: Privacy-safe delivery counts, visible to commissioners only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountEmailStatus" }
   /auth/logout:
     post:
       operationId: logout
@@ -335,6 +316,17 @@ components:
       required: [message]
       properties:
         message: { type: string }
+    AccountEmailStatus:
+      type: object
+      required: [pending, sending, failed, sent, cancelled, oldest_pending_at, max_attempts]
+      properties:
+        pending: { type: integer }
+        sending: { type: integer }
+        failed: { type: integer }
+        sent: { type: integer }
+        cancelled: { type: integer }
+        oldest_pending_at: { type: [string, "null"], format: date-time }
+        max_attempts: { type: integer }
     User:
       type: object
       required: [id, name, email, role, ward_id]

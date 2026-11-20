@@ -1,10 +1,12 @@
 """Shared REST API. All state changes and their audit events commit atomically."""
 import io
+import asyncio
 import logging
 import math
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from collections import defaultdict, deque
 from datetime import datetime
 from urllib.parse import urlparse
@@ -17,14 +19,27 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text, func
 from . import config
-from .auth import authenticate, fail, user_json, session_response, account_enabled, verified_for_login, COOKIE
+from .auth import authenticate, fail, user_json, session_response, account_enabled, COOKIE
 from .models import Session, Ward, User, AccountSecurity, Ticket, Report, Repair, Event, TrafficZone, Settings, utcnow
+from .account_email_outbox import status_summary, worker_loop
 from .views import ticket_json, detail_json, report_json, event_json, columns
 from .storage import save_image, load_image
 from .ai.pipeline import validate_capture, haversine, priority, AnalysisUnavailable
 
 log = logging.getLogger("nagardrishti")
-app = FastAPI(title="NagarDrishti API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker = asyncio.create_task(worker_loop())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        try:
+            await worker
+        except asyncio.CancelledError:
+            pass
+
+app = FastAPI(title="NagarDrishti API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan)
 origins = ["https://" + d for d in os.getenv("REPLIT_DOMAINS", "").split(",") if d]
 origins += [s for s in os.getenv("CORS_ORIGINS", "").split(",") if s]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
@@ -143,8 +158,6 @@ def login(data: Credentials, response: Response, db=Depends(database)):
     if not user or not valid or not account_enabled(user):
         fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.")
     security = db.get(AccountSecurity, user.id)
-    if not verified_for_login(user, security):
-        fail(403, "EMAIL_VERIFICATION_REQUIRED", "Verify your email before signing in. Request a verification email below.")
     return session_response(user, response, security)
 
 from .account_recovery import install as install_account_recovery
@@ -158,6 +171,11 @@ def logout(response: Response):
 @app.get("/api/me")
 def me(request: Request, db=Depends(database)):
     return user_json(authenticate(request, db))
+
+@app.get("/api/ops/account-email")
+def account_email_status(request: Request, db=Depends(database)):
+    authenticate(request, db, ["commissioner"])
+    return status_summary(db)
 
 @app.get("/api/wards")
 def wards(db=Depends(database)):

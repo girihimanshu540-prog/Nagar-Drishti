@@ -3,15 +3,17 @@ import hashlib
 import hmac
 import secrets
 from datetime import timedelta
-from fastapi import BackgroundTasks, Depends, Request, Response, APIRouter
+from fastapi import Depends, Request, Response, APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 from .auth import SECRET, COOKIE, account_enabled, fail, hash_password
-from .models import AccountSecurity, AccountToken, AuthThrottle, User, Ward, utcnow
+from .models import AccountEmailOutbox, AccountSecurity, AccountToken, AuthThrottle, User, Ward, utcnow
 from . import account_email
+from .account_email_outbox import enqueue
 
-MESSAGE = {"message": "If the account is eligible, email instructions have been requested. Check your inbox or try again later."}
+REGISTER_MESSAGE = {"message": "If the account is eligible, you can sign in with the submitted credentials."}
+RESET_MESSAGE = {"message": "If the account is eligible, password reset instructions have been requested."}
 router = APIRouter(prefix="/api/auth")
 
 
@@ -68,24 +70,36 @@ def security_row(db, user):
     return row
 
 
-def issue(db, user, purpose, tasks, delivery):
+def issue(db, user):
     if not user or not account_enabled(user) or user.email.endswith("@nagardrishti.demo"):
         return
-    row = security_row(db, user)
-    if purpose == "verify" and (row.email_verified or user.role != "citizen"):
-        return
-    # Recovery can establish ownership of a legacy/unverified citizen account too.
+    # New recovery codes replace every previous code and queued message for this account.
     db.execute(delete(AccountToken).where(AccountToken.expires_at <= utcnow()))
-    db.execute(delete(AccountToken).where(AccountToken.user_id == user.id, AccountToken.purpose == purpose))
+    old_digests = db.scalars(select(AccountToken.digest).where(
+        AccountToken.user_id == user.id, AccountToken.purpose == "reset"
+    )).all()
+    if old_digests:
+        db.query(AccountEmailOutbox).filter(
+            AccountEmailOutbox.token_digest.in_(old_digests),
+            AccountEmailOutbox.status.in_(("pending", "sending")),
+        ).update({
+            AccountEmailOutbox.status: "cancelled",
+            AccountEmailOutbox.last_failure_code: "superseded",
+            AccountEmailOutbox.lease_until: None,
+            AccountEmailOutbox.encrypted_token: None,
+            AccountEmailOutbox.token_digest: None,
+        }, synchronize_session=False)
+    db.execute(delete(AccountToken).where(AccountToken.user_id == user.id, AccountToken.purpose == "reset"))
     token = secrets.token_urlsafe(32)
-    db.add(AccountToken(digest=hashlib.sha256(token.encode()).hexdigest(), user_id=user.id,
-                        purpose=purpose, expires_at=utcnow() + timedelta(minutes=30)))
-    tasks.add_task(account_email.deliver, delivery, user.email, purpose, token)
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    db.add(AccountToken(digest=digest, user_id=user.id,
+                        purpose="reset", expires_at=utcnow() + timedelta(minutes=30)))
+    enqueue(db, user, token, digest)
 
 
 def install(app, database):
     @router.post("/register")
-    def register(data: Registration, request: Request, tasks: BackgroundTasks, db=Depends(database)):
+    def register(data: Registration, request: Request, db=Depends(database)):
         email = normalize_email(data.email)
         if email.endswith("@nagardrishti.demo"):
             fail(422, "RESERVED_EMAIL", "Use your own email address, not a demonstration account.")
@@ -93,7 +107,6 @@ def install(app, database):
             fail(422, "INVALID_NAME", "Enter a name with at least two non-space characters.")
         password_hash = hash_password(data.password)  # Same cost for existing/unknown accounts.
         throttle(db, request, email)
-        delivery = account_email.delivery_config()  # Fail identically, before account lookup.
         # Serialize registrations by normalized email, including concurrent first use.
         lock = int.from_bytes(hashlib.sha256(email.encode()).digest()[:8], "big", signed=True)
         db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock})
@@ -105,32 +118,27 @@ def install(app, database):
             user = User(name=data.name.strip(), email=email, password_hash=password_hash, role="citizen", ward_id=ward.id)
             db.add(user)
             db.flush()
+            security_row(db, user)
         # Never overwrite an existing password, name, or server-owned role.
-        issue(db, user, "verify", tasks, delivery)
         db.commit()
-        return MESSAGE
+        return REGISTER_MESSAGE
 
-    def request_token(purpose, data, request, tasks, db):
+    def request_token(data, request, db):
         email = normalize_email(data.email)
         throttle(db, request, email)
-        delivery = account_email.delivery_config()
+        account_email.delivery_config()  # Explicit approval/config required before queuing any message.
         user = db.scalar(select(User).where(User.email == email).with_for_update())
-        issue(db, user, purpose, tasks, delivery)
+        issue(db, user)
         db.commit()
-        return MESSAGE
-
-    @router.post("/verification/request")
-    def request_verification(data: EmailInput, request: Request, tasks: BackgroundTasks, db=Depends(database)):
-        return request_token("verify", data, request, tasks, db)
+        return RESET_MESSAGE
 
     @router.post("/password/request")
-    def request_password(data: EmailInput, request: Request, tasks: BackgroundTasks, db=Depends(database)):
-        return request_token("reset", data, request, tasks, db)
+    def request_password(data: EmailInput, request: Request, db=Depends(database)):
+        return request_token(data, request, db)
 
-    def confirm(purpose, data, request, response, db):
+    def confirm(data, request, response, db):
         throttle(db, request)
-        # Both verification and recovery establish a password chosen by the owner,
-        # preventing a pre-registered account from retaining an attacker's password.
+        # Password recovery establishes a password chosen by the account holder.
         password_hash = hash_password(data.password)
         digest = hashlib.sha256(data.token.encode()).hexdigest()
         token = db.get(AccountToken, digest)
@@ -140,27 +148,30 @@ def install(app, database):
         user = db.scalar(select(User).where(User.id == token.user_id).with_for_update())
         db.expire_all()
         token = db.get(AccountToken, digest)
-        if (not user or not account_enabled(user) or token is None or token.purpose != purpose
+        if (not user or not account_enabled(user) or token is None or token.purpose != "reset"
                 or token.expires_at <= utcnow() or user.email.endswith("@nagardrishti.demo")):
             fail(400, "INVALID_ACCOUNT_TOKEN", "This code is invalid or expired. Request a new email.")
         row = security_row(db, user)
-        if purpose == "verify" and (row.email_verified or user.role != "citizen"):
-            fail(400, "INVALID_ACCOUNT_TOKEN", "This code is invalid or expired. Request a new email.")
-        row.email_verified = True
         row.session_version += 1
         user.password_hash = password_hash
         # Invalidate every sibling token of either purpose, atomically with password/version.
         db.execute(delete(AccountToken).where(AccountToken.user_id == user.id))
+        db.query(AccountEmailOutbox).filter(
+            AccountEmailOutbox.user_id == user.id,
+            AccountEmailOutbox.status.in_(("pending", "sending")),
+        ).update({
+            AccountEmailOutbox.status: "cancelled",
+            AccountEmailOutbox.last_failure_code: "password_updated",
+            AccountEmailOutbox.lease_until: None,
+            AccountEmailOutbox.encrypted_token: None,
+            AccountEmailOutbox.token_digest: None,
+        }, synchronize_session=False)
         db.commit()
         response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
-        return {"message": "Your password is set and email verified. Existing sessions are signed out. Sign in with your new password."}
-
-    @router.post("/verification/confirm")
-    def confirm_verification(data: TokenInput, request: Request, response: Response, db=Depends(database)):
-        return confirm("verify", data, request, response, db)
+        return {"message": "Your password has been changed. Existing sessions are signed out; sign in with your new password."}
 
     @router.post("/password/confirm")
     def confirm_password(data: TokenInput, request: Request, response: Response, db=Depends(database)):
-        return confirm("reset", data, request, response, db)
+        return confirm(data, request, response, db)
 
     app.include_router(router)

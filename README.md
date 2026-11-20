@@ -17,7 +17,7 @@ See [mobile setup and device acceptance](artifacts/mobile/README.md).
 ### Included
 
 - Public read-only overview, public map and ticket-ID tracker.
-- Role login, citizen registration, bcrypt password hashes, signed JWTs in secure HTTP-only cookies.
+- Citizen and operator-provisioned role login, public citizen registration, bcrypt password hashes, signed JWTs in secure HTTP-only cookies.
 - Four role-specific views: citizen, contractor, Junior Engineer and commissioner.
 - Leaflet / OpenStreetMap hazard map, search, status/ward/severity filters, priority sorting and CSV export.
 - Live-camera citizen reports and contractor repairs; no gallery picker.
@@ -109,45 +109,46 @@ detection. No live endpoint substitutes seed data or test results.
 No shared login credentials or sample sign-in buttons are provided. `seed.py --init`
 creates missing development tables only: no accounts, wards, traffic zones or reports.
 Provision genuine wards and staff through an operator-controlled process. Public
-registration creates citizens only; unknown/duplicate email requests return the same
-message. Citizens must prove email ownership before sign-in, including legacy accounts.
+registration creates citizen accounts only; duplicate registration responses do not
+reveal whether an address already has an account. New accounts are active immediately
+and the web and mobile apps sign in using the submitted credentials. Email addresses
+are not verified and must not be treated as proof of identity. The signup form assigns
+the first configured ward; it does not verify a resident's address or ward.
 
-Verification and password reset use 30-minute single-use codes, stored only as SHA-256
-digests. Requesting a replacement invalidates the previous code of that kind. Completion
-invalidates every outstanding code and all existing cookie/bearer sessions, then requires
-fresh sign-in. The owner chooses the final password during verification to prevent
-pre-registered accounts retaining someone else's chosen password.
+Password reset uses a single-use 30-minute code stored as a SHA-256 digest. Requesting
+a replacement invalidates the previous code and cancels its unsent message. Successful
+reset revokes all existing cookie/bearer sessions, then requires fresh sign-in. The
+web and mobile screens expose password recovery only; email verification UI and routes
+have been removed.
 
-Both sign-in screens offer recovery and verification requests plus code entry. Web
-email links carry the code in a fragment, removed on load; opening a link never consumes
-it. Native users can enter the email code in the app or finish on the web and sign in
-on their phone. Native SecureStore and bearer transport remain unchanged.
-
-**Email delivery is not enabled.** The integration offer was dismissed; no provider
-was connected and no messages were sent. Requests return `503 EMAIL_UNAVAILABLE`
-until an operator explicitly approves and configures a provider. A vendor-neutral
-SMTP adapter is available for that later setup; it requires authenticated TLS on port
-587 and never falls back to plaintext, token logs, local mail files or fake success.
-Delivery runs after the HTTP response to avoid exposing account existence through
-provider latency; provider errors are logged without personal data and require operator
-attention. The request response deliberately does not claim delivery.
+**Password-reset email delivery is not enabled.** No provider is connected and no
+messages have been sent. Signup and sign-in work without email; password-reset requests
+return `503 EMAIL_UNAVAILABLE` until an operator explicitly approves and configures
+delivery. The SMTP adapter requires authenticated TLS on port 587 and never falls back
+to plaintext, token logs, local mail files or fake success. Approved reset messages are
+stored in a durable outbox with encrypted reset tokens, no recipient address in the job,
+bounded retries and cancellation of expired or superseded codes. A commissioner-only
+`/api/ops/account-email` endpoint exposes aggregate queue counts and failure totals,
+without recipient or token details.
 
 Future operator configuration (use secure workspace secrets for credentials):
 `ACCOUNT_EMAIL_APPROVED=true`, `ACCOUNT_PUBLIC_ORIGIN` (trusted HTTPS web origin),
 `ACCOUNT_SMTP_HOST`, `ACCOUNT_SMTP_USERNAME`, `ACCOUNT_SMTP_PASSWORD`, and
-`ACCOUNT_EMAIL_FROM` (authorized sender). Do not enable delivery before operator
-approval and end-to-end delivery checks. No provider credentials belong in clients.
+`ACCOUNT_EMAIL_FROM` (authorized sender), plus a stable Fernet
+`ACCOUNT_EMAIL_ENCRYPTION_KEY` for queued reset-token encryption. Do not enable delivery
+before operator approval and end-to-end delivery checks. No provider credentials belong
+in clients.
 
 Apply additive development tables explicitly with
-`uv run python -m scripts.migrate_account_security`; never run schema DDL at startup
+`uv run python -m scripts.migrate_account_security` and
+`uv run python -m scripts.migrate_account_email_outbox`; never run schema DDL at startup
 or in a build. Production schema changes follow the managed Publish review when
-publishing is authorized, not this development-only script.
+publishing is authorized, not these development-only scripts.
 
-`uv run python -m scripts.retire_demo_accounts` permanently removes legacy sample
-sign-ins in development. Referenced account IDs are retained only as anonymized,
-non-login historical identities, preserving all reports and audit links. Unreferenced
-sample account rows are deleted. The cleanup never modifies real accounts or reports.
-Legacy sample reports remain labeled and excluded from live metrics.
+`uv run python -m scripts.retire_demo_accounts` is an existing development-only cleanup
+for legacy sample sign-ins. Do not run it without the owner's approval; no account or
+report deletion is authorized by the signup change. Legacy sample reports remain labeled
+and excluded from live metrics.
 
 ## API
 
@@ -244,8 +245,9 @@ not establish genuine on-site repair accuracy. Public desktop and phone-sized la
 were visually checked. The original signed-in web screens were not browser-interaction
 tested. The native addition's Expo browser checks covered citizen/contractor login,
 role-scoped lists/details, filters, logout and the capture permission screen; the
-existing Vite ticket page also passed a smoke check. Ten mobile policy/transport tests,
-TypeScript checks and Expo Doctor's 20 checks passed. Native bundle compilation is not
+existing Vite ticket page also passed a smoke check. Fourteen mobile policy, transport,
+and signup/login-flow tests, TypeScript checks and Expo Doctor's 20 checks passed.
+Native bundle compilation is not
 physical-device camera/GPS, SecureStore or genuine field-image acceptance.
 
 Optional deployment smoke runner:

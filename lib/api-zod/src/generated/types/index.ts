@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './accountEmailStatus';
 export * from './accountMessage';
 export * from './accountTokenInput';
 export * from './assignmentInput';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowLeft, Eye, LogIn, UserPlus } from 'lucide-react';
-import { useLogin, useRegister, type AuthResult } from '@workspace/api-client-react';
+import { registerAndSignInCitizen, useLogin, useRegister, type AuthResult } from '@workspace/api-client-react';
 import { useResetSession, errMsg } from '@/lib/core';
 import { AccountRecovery } from '@/components/AccountRecovery';
 
@@ -12,13 +12,35 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [notice, setNotice] = useState('');
+  const [registrationError, setRegistrationError] = useState('');
   const done = async (r: AuthResult) => { await reset(r.user); nav(r.user.role === 'citizen' ? '/report' : r.user.role === 'je' ? '/reviews' : r.user.role === 'contractor' ? '/tickets' : '/'); };
-  const login = useLogin({ mutation: { onSuccess: done } });
-  const register = useRegister({ mutation: { onSuccess: (r) => { setNotice(r.message); setPassword(''); } } });
+  const login = useLogin();
+  const register = useRegister();
   const pending = login.isPending || register.isPending;
-  const error = login.error ?? register.error;
+  const error = registrationError || (login.error ? errMsg(login.error) : register.error ? errMsg(register.error) : '');
   const inp = 'min-h-[44px] w-full rounded-sm border border-input bg-background px-3 py-2 text-base sm:text-sm outline-none transition-colors focus:border-primary';
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegistrationError('');
+    if (mode === 'login') {
+      try {
+        await done(await login.mutateAsync({ data: { email, password } }));
+      } catch (err) {
+        setRegistrationError(errMsg(err));
+      }
+      return;
+    }
+    try {
+      await registerAndSignInCitizen({
+        credentials: { name: name.trim(), email: email.trim().toLowerCase(), password },
+        register: (data) => register.mutateAsync({ data }),
+        login: (data) => login.mutateAsync({ data }),
+        acceptSession: done,
+      });
+    } catch (err) {
+      setRegistrationError(errMsg(err));
+    }
+  };
 
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.1fr_1fr]">
@@ -38,15 +60,14 @@ export default function Login() {
         <div className="rise w-full max-w-md">
           <Link href="/" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground lg:hidden"><ArrowLeft className="h-4 w-4" />Public overview</Link>
           <div className="mb-5 flex rounded-sm border border-border p-0.5">
-            {(['login', 'register'] as const).map((m) => <button key={m} disabled={pending} data-testid={`button-mode-${m}`} onClick={() => { setMode(m); setNotice(''); login.reset(); register.reset(); }} className={`min-h-[40px] flex-1 rounded-sm py-1.5 text-sm transition-colors ${mode === m ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}>{m === 'login' ? 'Sign in' : 'Citizen registration'}</button>)}
+            {(['login', 'register'] as const).map((m) => <button key={m} disabled={pending} data-testid={`button-mode-${m}`} onClick={() => { setMode(m); setRegistrationError(''); login.reset(); register.reset(); }} className={`min-h-[40px] flex-1 rounded-sm py-1.5 text-sm transition-colors ${mode === m ? 'bg-muted font-semibold' : 'text-muted-foreground'}`}>{m === 'login' ? 'Sign in' : 'Citizen registration'}</button>)}
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); if (mode === 'login') login.mutate({ data: { email, password } }); else register.mutate({ data: { name, email, password } }); }} className="space-y-3">
+          <form onSubmit={submit} className="space-y-3">
             {mode === 'register' && <input data-testid="input-name" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Full name" autoComplete="name" className={inp} />}
             <input data-testid="input-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email" className={inp} />
             <input data-testid="input-password" type="password" required minLength={mode === 'register' ? 10 : 1} maxLength={72} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" aria-label="Password" className={inp} />
-            {mode === 'register' && <p className="text-xs text-muted-foreground">Use 10–72 bytes. Email verification is required before sign-in. You will choose your final password when verifying.</p>}
-            {notice && <p role="status" data-testid="registration-notice" className="text-sm">{notice}</p>}
-            {error && <div data-testid="text-auth-error" className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-rose-200">{errMsg(error)}</div>}
+            {mode === 'register' && <p className="text-xs text-muted-foreground">Use a password of 10–72 bytes. Your citizen account will be active immediately.</p>}
+            {error && <div data-testid="text-auth-error" className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-rose-200">{error}</div>}
             <button data-testid="button-submit-auth" disabled={pending} className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-sm bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-transform active:scale-[.98] disabled:opacity-60">
               {mode === 'login' ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}{pending ? 'Please wait' : mode === 'login' ? 'Sign in' : 'Create citizen account'}
             </button>

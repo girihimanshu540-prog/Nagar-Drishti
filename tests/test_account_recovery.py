@@ -1,105 +1,153 @@
-"""Isolated ownership/session policy tests; no live email is sent."""
+"""Signup, sign-in and durable password-reset policy tests; no live email is sent."""
 import hashlib
 from datetime import timedelta
 import pytest
 from sqlalchemy import select, func
+from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from api import account_email
 from api.main import app
-from api.models import User, AccountSecurity, AccountToken, AuthThrottle, Report, Ticket, Repair, Event, utcnow
-from api.auth import session_response
-from fastapi import Response
-from account_fixtures import TEST_PASSWORD, TEST_HASH
+from api.models import (
+    AccountEmailOutbox, User, AccountSecurity, AccountToken, AuthThrottle,
+    Report, Ticket, Repair, Event, utcnow,
+)
+from account_fixtures import TEST_PASSWORD
 from test_api import isolated, login
 from scripts.retire_demo_accounts import retire
 
 
 @pytest.fixture
-def mailbox(isolated, monkeypatch):
-    messages = []
-    monkeypatch.setattr(account_email, "delivery_config", lambda: {"origin": "https://testserver"})
-    monkeypatch.setattr(account_email, "deliver", lambda settings, email, purpose, token: messages.append((email, purpose, token)))
-    return messages
+def email_configured(isolated, monkeypatch):
+    """Fake approved configuration only; dispatcher tests replace SMTP with a stub."""
+    monkeypatch.setenv("ACCOUNT_EMAIL_ENCRYPTION_KEY", "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=")
+    monkeypatch.setattr(account_email, "delivery_config", lambda: {
+        "origin": "https://testserver", "host": "smtp.invalid", "username": "fixture",
+        "password": "fixture-only", "sender": "sender@policy.invalid",
+    })
 
 
-def request(client, email, purpose="reset"):
-    path = "password" if purpose == "reset" else "verification"
-    return client.post(f"/api/auth/{path}/request", json={"email": email})
+def request(client, email):
+    return client.post("/api/auth/password/request", json={"email": email})
 
 
-def confirm(client, token, purpose="reset", password=TEST_PASSWORD):
-    path = "password" if purpose == "reset" else "verification"
-    return client.post(f"/api/auth/{path}/confirm", json={"token": token, "password": password})
+def confirm(client, token, password=TEST_PASSWORD):
+    return client.post("/api/auth/password/confirm", json={"token": token, "password": password})
 
 
 def register(client, **changes):
     return client.post("/api/auth/register", json={
-        "name": "Account Policy Test", "email": "new-owner@policy.invalid", "password": TEST_PASSWORD, **changes})
+        "name": "Account Policy Test", "email": "new-owner@policy.invalid",
+        "password": TEST_PASSWORD, **changes,
+    })
 
 
-def test_unconfigured_delivery_is_explicit_and_does_not_create_accounts(isolated, monkeypatch):
+def queued_token(db, user_id):
+    row = db.scalar(select(AccountEmailOutbox).where(
+        AccountEmailOutbox.user_id == user_id,
+        AccountEmailOutbox.status.in_(("pending", "sending")),
+    ).order_by(AccountEmailOutbox.id.desc()))
+    assert row and row.encrypted_token
+    return account_email.decrypt_token(row.encrypted_token)
+
+
+def test_signup_activates_citizen_without_email_and_signs_in(isolated, monkeypatch):
     client, db, _ = isolated
-    monkeypatch.delenv("ACCOUNT_EMAIL_APPROVED", raising=False)
-    before = db.scalar(select(func.count()).select_from(User))
-    for email in ("citizen@policy.invalid", "unknown@policy.invalid"):
-        r = request(client, email)
-        assert r.status_code == 503 and r.json()["error"]["code"] == "EMAIL_UNAVAILABLE"
-    assert register(client).status_code == 503
-    assert db.scalar(select(func.count()).select_from(User)) == before
-    assert not db.scalar(select(func.count()).select_from(AccountToken))
 
-
-def test_registration_requires_ownership_and_does_not_accept_roles(isolated, mailbox):
-    client, db, _ = isolated
-    assert register(client, role="commissioner").status_code == 422
+    def unavailable():
+        raise AssertionError("Signup must not depend on email configuration.")
+    monkeypatch.setattr(account_email, "delivery_config", unavailable)
     result = register(client)
-    assert result.status_code == 200 and "access_token" not in result.json()
+    assert result.status_code == 200
+    assert "access_token" not in result.json()
     assert not client.cookies
     user = db.scalar(select(User).where(User.email == "new-owner@policy.invalid"))
-    assert user.role == "citizen"
-    credentials = {"email": user.email, "password": TEST_PASSWORD}
-    assert client.post("/api/auth/login", json=credentials).status_code == 403
-    token = mailbox[-1][2]
-    row = db.get(AccountToken, hashlib.sha256(token.encode()).hexdigest())
-    assert row and row.digest != token and row.purpose == "verify"
-    assert utcnow() + timedelta(minutes=29) < row.expires_at < utcnow() + timedelta(minutes=31)
-    new_password = "OwnerChosenPassword2026!"
-    assert confirm(client, token, "verify", new_password).status_code == 200
-    assert confirm(client, token, "verify", new_password).status_code == 400
-    assert client.post("/api/auth/login", json=credentials).status_code == 401
-    assert client.post("/api/auth/login", json={**credentials, "password": new_password}).status_code == 200
-    assert client.get("/api/me").json()["role"] == "citizen"
+    assert user and user.role == "citizen"
+    security = db.get(AccountSecurity, user.id)
+    assert security and security.email_verified is False
+    assert not db.scalar(select(func.count()).select_from(AccountToken).where(AccountToken.user_id == user.id))
+    assert not db.scalar(select(func.count()).select_from(AccountEmailOutbox).where(AccountEmailOutbox.user_id == user.id))
+    signed_in = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["role"] == "citizen"
+    assert client.get("/api/me").json()["id"] == user.id
 
 
-def test_enumeration_safe_requests_and_duplicate_registration(isolated, mailbox):
+def test_signup_never_accepts_a_staff_role_or_reserved_demo_address(isolated):
+    client, db, _ = isolated
+    assert register(client, role="commissioner").status_code == 422
+    assert register(client, role="contractor").status_code == 422
+    assert register(client, email="new@nagardrishti.demo").status_code == 422
+    assert db.scalar(select(func.count()).select_from(User).where(User.email == "new-owner@policy.invalid")) == 0
+
+
+def test_duplicate_signup_is_enumeration_safe_and_preserves_password(isolated):
+    client, db, _ = isolated
+    first = register(client)
+    user = db.scalar(select(User).where(User.email == "new-owner@policy.invalid"))
+    original_hash, original_name = user.password_hash, user.name
+    duplicate = register(client, name="Changed name", password="AnotherPassword2026!")
+    assert first.status_code == duplicate.status_code == 200
+    assert first.json() == duplicate.json()
+    assert (user.password_hash, user.name, user.role) == (original_hash, original_name, "citizen")
+    assert client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD}).status_code == 200
+    assert client.post("/api/auth/login", json={"email": user.email, "password": "AnotherPassword2026!"}).status_code == 401
+
+
+def test_login_rate_limit_and_session_version_protection_remain(isolated):
+    client, db, _ = isolated
+    result = login(client, "citizen")
+    user = db.get(User, result["user"]["id"])
+    row = db.get(AccountSecurity, user.id)
+    row.email_verified = False
+    db.flush()
+    assert client.get("/api/me").status_code == 200
+    row.session_version += 1
+    db.flush()
+    assert client.get("/api/me").status_code == 401
+    for _ in range(20):
+        response = client.post("/api/auth/login", json={"email": "absent@policy.invalid", "password": TEST_PASSWORD})
+        if response.status_code == 429:
+            break
+    assert response.status_code == 429
+    assert client.post("/api/auth/login", json={"email": "citizen@policy.invalid", "password": TEST_PASSWORD}).status_code == 429
+
+
+def test_password_requests_stay_enumeration_safe_and_queue_encrypted_data(isolated, email_configured):
     client, db, _ = isolated
     known = request(client, "citizen@policy.invalid")
     unknown = request(client, "nobody@policy.invalid")
-    disabled = db.get(User, 5)
-    disabled.password_hash = "!disabled"
-    db.flush()
-    blocked = request(client, disabled.email)
-    assert known.json() == unknown.json() == blocked.json()
-    assert len(mailbox) == 1
-    first = register(client)
-    original = db.scalar(select(User).where(User.email == "new-owner@policy.invalid"))
-    original_hash, original_name = original.password_hash, original.name
-    duplicate = register(client, name="Changed name", password="AnotherPassword2026!")
-    assert first.json() == duplicate.json() == known.json()
-    assert original.password_hash == original_hash and original.name == original_name
-    assert db.scalar(select(func.count()).select_from(User).where(User.email == original.email)) == 1
-    assert len(mailbox) == 3
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+    rows = db.scalars(select(AccountEmailOutbox).order_by(AccountEmailOutbox.id)).all()
+    assert len(rows) == 1
+    row = rows[0]
+    token = account_email.decrypt_token(row.encrypted_token)
+    assert row.status == "pending" and row.attempts == 0 and row.purpose == "reset"
+    assert row.token_digest == hashlib.sha256(token.encode()).hexdigest()
+    assert "citizen@policy.invalid" not in row.encrypted_token and token not in row.encrypted_token
+    token_row = db.get(AccountToken, row.token_digest)
+    assert token_row.purpose == "reset"
+    assert utcnow() + timedelta(minutes=29) < token_row.expires_at < utcnow() + timedelta(minutes=31)
+
+def test_password_reset_email_stays_disabled_without_operator_approval(isolated, monkeypatch):
+    client, db, _ = isolated
+    for key in ("ACCOUNT_EMAIL_APPROVED", "ACCOUNT_PUBLIC_ORIGIN", "ACCOUNT_SMTP_HOST",
+                "ACCOUNT_SMTP_USERNAME", "ACCOUNT_SMTP_PASSWORD", "ACCOUNT_EMAIL_FROM",
+                "ACCOUNT_EMAIL_ENCRYPTION_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    response = request(client, "citizen@policy.invalid")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "EMAIL_UNAVAILABLE"
+    assert "no email was sent" in response.json()["error"]["message"]
+    assert not db.scalar(select(func.count()).select_from(AccountEmailOutbox))
 
 
-def test_reset_revokes_cookie_and_bearer_and_all_sibling_tokens(isolated, mailbox):
+def test_reset_is_single_use_revokes_cookie_and_bearer_sessions(isolated, email_configured):
     web, db, _ = isolated
     result = login(web, "citizen")
     old_cookie = web.cookies.get("nagardrishti_session")
     assert request(web, result["user"]["email"]).status_code == 200
-    reset_token = mailbox[-1][2]
-    # A verification token from an earlier lifecycle must also be invalidated.
-    db.add(AccountToken(digest="a"*64, user_id=result["user"]["id"], purpose="verify", expires_at=utcnow()+timedelta(minutes=30)))
-    db.flush()
+    reset_token = queued_token(db, result["user"]["id"])
     with TestClient(app, base_url="https://testserver") as native:
         native.headers["Authorization"] = f"Bearer {result['access_token']}"
         assert native.get("/api/me").status_code == 200
@@ -107,61 +155,74 @@ def test_reset_revokes_cookie_and_bearer_and_all_sibling_tokens(isolated, mailbo
         assert changed.status_code == 200 and "access_token" not in changed.json()
         assert native.get("/api/me").status_code == 401
         native.headers.clear()
-        assert native.post("/api/auth/login", json={"email":result["user"]["email"],"password":TEST_PASSWORD}).status_code == 401
-        fresh = native.post("/api/auth/login", json={"email":result["user"]["email"],"password":"ReplacementPassword2026!"})
+        assert native.post("/api/auth/login", json={"email": result["user"]["email"], "password": TEST_PASSWORD}).status_code == 401
+        fresh = native.post("/api/auth/login", json={"email": result["user"]["email"], "password": "ReplacementPassword2026!"})
         assert fresh.status_code == 200
-        native.cookies.clear()
-        native.headers["Authorization"] = f"Bearer {fresh.json()['access_token']}"
-        assert native.get("/api/me").status_code == 200
     web.cookies.set("nagardrishti_session", old_cookie)
     assert web.get("/api/me").status_code == 401
+    assert confirm(web, reset_token).status_code == 400
     assert not db.scalar(select(func.count()).select_from(AccountToken).where(AccountToken.user_id == result["user"]["id"]))
 
 
-def test_replacement_expiry_purpose_and_password_policy(isolated, mailbox):
+def test_replacement_expiry_password_policy_and_superseded_email(isolated, email_configured):
     client, db, _ = isolated
     email = "citizen@policy.invalid"
     assert request(client, email).status_code == 200
-    old = mailbox[-1][2]
+    user = db.scalar(select(User).where(User.email == email))
+    first = db.scalar(select(AccountEmailOutbox).where(AccountEmailOutbox.user_id == user.id))
+    old_token = account_email.decrypt_token(first.encrypted_token)
     assert request(client, email).status_code == 200
-    new = mailbox[-1][2]
-    assert new != old and confirm(client, old).status_code == 400
-    assert confirm(client, new, "verify").status_code == 400
-    assert confirm(client, new, password="short").status_code == 422
-    assert confirm(client, new, password="é"*40).status_code == 422
-    row = db.get(AccountToken, hashlib.sha256(new.encode()).hexdigest())
+    second = db.scalar(select(AccountEmailOutbox).where(
+        AccountEmailOutbox.user_id == user.id, AccountEmailOutbox.status == "pending"))
+    new_token = account_email.decrypt_token(second.encrypted_token)
+    db.expire(first)
+    assert first.status == "cancelled" and first.encrypted_token is None
+    assert confirm(client, old_token).status_code == 400
+    assert confirm(client, new_token, "short").status_code == 422
+    assert confirm(client, new_token, "é" * 40).status_code == 422
+    row = db.get(AccountToken, second.token_digest)
     row.expires_at = utcnow() - timedelta(seconds=1)
     db.flush()
-    assert confirm(client, new).status_code == 400
+    assert confirm(client, new_token).status_code == 400
     assert request(client, email).status_code == 200
-    assert confirm(client, mailbox[-1][2]).status_code == 200
+    assert confirm(client, queued_token(db, user.id)).status_code == 200
 
 
-def test_rate_limits_are_persistent_and_apply_to_unknown_emails(isolated, mailbox):
+def test_rate_limits_are_persistent_and_apply_to_unknown_emails(isolated, email_configured):
     client, db, _ = isolated
     for _ in range(3):
         assert request(client, "absent@policy.invalid").status_code == 200
     assert request(client, "absent@policy.invalid").status_code == 429
-    # Process-local middleware bookkeeping does not reset shared quotas.
     import api.main as routes
     routes.hits.clear()
     assert request(client, "absent@policy.invalid").status_code == 429
-    assert not mailbox
     keys = db.scalars(select(AuthThrottle.key)).all()
     assert keys and all(len(key) == 64 for key in keys)
 
 
 @pytest.mark.parametrize("role", ["contractor", "je", "commissioner"])
-def test_staff_recovery_preserves_server_owned_role(isolated, mailbox, role):
+def test_staff_recovery_preserves_operator_provisioned_role(isolated, email_configured, role):
     client, db, _ = isolated
     result = login(client, role)
     assert request(client, result["user"]["email"]).status_code == 200
-    assert mailbox[-1][1] == "reset"
-    assert confirm(client, mailbox[-1][2]).status_code == 200
+    token = queued_token(db, result["user"]["id"])
+    assert confirm(client, token).status_code == 200
     assert login(client, role)["user"]["role"] == role
-    count = len(mailbox)
-    assert request(client, result["user"]["email"], "verify").status_code == 200
-    assert len(mailbox) == count  # Public verification cannot create/promote staff.
+    assert client.post("/api/auth/verification/request", json={"email": result["user"]["email"]}).status_code == 404
+    assert client.post("/api/auth/verification/confirm", json={"token": "a"*43, "password": TEST_PASSWORD}).status_code == 404
+
+
+def test_legacy_unverified_citizens_can_sign_in_without_migration(isolated):
+    client, db, _ = isolated
+    user = db.scalar(select(User).where(User.email == "citizen@policy.invalid"))
+    row = db.get(AccountSecurity, user.id)
+    row.email_verified = False
+    db.flush()
+    client.cookies.clear()
+    result = client.post("/api/auth/login", json={"email": user.email, "password": TEST_PASSWORD})
+    assert result.status_code == 200
+    assert result.json()["user"]["role"] == "citizen"
+    assert client.get("/api/me").status_code == 200
 
 
 def test_retiring_sample_signins_preserves_reports_and_real_users(isolated):
@@ -183,23 +244,10 @@ def test_retiring_sample_signins_preserves_reports_and_real_users(isolated):
     assert retire(db) == {"deleted_unreferenced_accounts": 0, "retired_historical_identities": 0}
 
 
-def test_legacy_citizens_require_verification_even_with_an_old_cookie(isolated, mailbox):
-    client, db, _ = isolated
-    result = login(client, "citizen")
-    db.delete(db.get(AccountSecurity, result["user"]["id"]))
-    db.flush()
-    assert client.get("/api/me").status_code == 401
-    assert client.post("/api/auth/login", json={"email": result["user"]["email"], "password": TEST_PASSWORD}).status_code == 403
-    assert request(client, result["user"]["email"], "verify").status_code == 200
-    assert confirm(client, mailbox[-1][2], "verify").status_code == 200
-    assert login(client, "citizen")["user"]["role"] == "citizen"
-
-
-def test_smtp_adapter_uses_authenticated_tls_without_sending_live_mail(monkeypatch):
+def test_smtp_adapter_uses_tls_and_reset_only_without_live_mail(monkeypatch):
     calls, messages = [], []
     class FakeSMTP:
-        def __init__(self, host, port, timeout):
-            calls.append((host, port, timeout))
+        def __init__(self, host, port, timeout): calls.append((host, port, timeout))
         def __enter__(self): return self
         def __exit__(self, *args): pass
         def ehlo(self): calls.append("ehlo")
@@ -207,30 +255,83 @@ def test_smtp_adapter_uses_authenticated_tls_without_sending_live_mail(monkeypat
         def login(self, username, password): calls.append("login")
         def send_message(self, msg): messages.append(msg)
     monkeypatch.setattr(account_email.smtplib, "SMTP", FakeSMTP)
-    settings = dict(origin="https://testserver", host="smtp.invalid", username="fixture", password="fixture", sender="sender@policy.invalid")
-    account_email.deliver(settings, "recipient@policy.invalid", "verify", "x"*43)
+    settings = dict(origin="https://testserver", host="smtp.invalid", username="fixture",
+                    password="fixture", sender="sender@policy.invalid")
+    account_email.deliver(settings, "recipient@policy.invalid", "reset", "x"*43)
     assert calls == [("smtp.invalid", 587, 10), "ehlo", "tls", "ehlo", "login"]
     text = messages[0].get_content()
-    assert "/login#verify=" in text and "30 minutes" in text and "code" in text
+    assert "/login#reset=" in text and "30 minutes" in text and "code" in text
+    with pytest.raises(account_email.DeliveryFailure):
+        account_email.deliver(settings, "recipient@policy.invalid", "verify", "x"*43)
 
 
 def test_smtp_failure_logs_no_token_recipient_or_provider_error(monkeypatch, caplog):
     def offline(*args, **kwargs):
         raise OSError("Sensitive provider response must never reach logs")
     monkeypatch.setattr(account_email.smtplib, "SMTP", offline)
-    account_email.deliver(dict(origin="https://testserver", host="smtp.invalid", username="fixture",
-                              password="fixture", sender="sender@policy.invalid"),
-                         "private@policy.invalid", "reset", "x"*43)
-    assert "operator attention" in caplog.text
+    with pytest.raises(account_email.DeliveryFailure):
+        account_email.deliver(dict(origin="https://testserver", host="smtp.invalid", username="fixture",
+                                   password="fixture", sender="sender@policy.invalid"),
+                              "private@policy.invalid", "reset", "x"*43)
     assert "Sensitive provider" not in caplog.text and "private@" not in caplog.text and "x"*43 not in caplog.text
 
 
 @pytest.mark.parametrize("origin", ["http://testserver", "https://testserver/unsafe", "https://testserver?next=evil", "https://user:pass@testserver"])
-def test_email_links_require_an_operator_configured_https_origin(monkeypatch, origin):
+def test_email_links_require_approved_https_origin(monkeypatch, origin):
     for key, value in dict(ACCOUNT_EMAIL_APPROVED="true", ACCOUNT_PUBLIC_ORIGIN=origin, ACCOUNT_SMTP_HOST="smtp.invalid",
-                           ACCOUNT_SMTP_USERNAME="fixture", ACCOUNT_SMTP_PASSWORD="fixture", ACCOUNT_EMAIL_FROM="sender@policy.invalid").items():
+                           ACCOUNT_SMTP_USERNAME="fixture", ACCOUNT_SMTP_PASSWORD="fixture", ACCOUNT_EMAIL_FROM="sender@policy.invalid",
+                           ACCOUNT_EMAIL_ENCRYPTION_KEY="eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=").items():
         monkeypatch.setenv(key, value)
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as err:
         account_email.delivery_config()
     assert err.value.status_code == 503
+
+
+def test_outbox_retries_are_bounded_and_status_is_visible(isolated, email_configured, monkeypatch, caplog):
+    client, db, _ = isolated
+    from api import account_email_outbox as outbox
+    factory = sessionmaker(bind=db.connection(), join_transaction_mode="create_savepoint", expire_on_commit=False)
+    monkeypatch.setattr(outbox, "Session", factory)
+    assert request(client, "citizen@policy.invalid").status_code == 200
+    row = db.scalar(select(AccountEmailOutbox).where(AccountEmailOutbox.status == "pending"))
+    token = account_email.decrypt_token(row.encrypted_token)
+    def provider_timeout(*args, **kwargs):
+        raise OSError(f"private@policy.invalid {token} provider details")
+    monkeypatch.setattr(account_email, "deliver", provider_timeout)
+    for attempt in range(1, outbox.MAX_ATTEMPTS + 1):
+        outbox.process_outbox_batch()
+        db.refresh(row)
+        assert row.attempts == attempt
+        if attempt < outbox.MAX_ATTEMPTS:
+            assert row.status == "pending"
+            row.next_attempt_at = utcnow() - timedelta(seconds=1)
+            db.flush()
+    assert row.status == "failed" and row.encrypted_token is None and row.token_digest is None
+    assert row.last_failure_code == "provider_error"
+    assert "private@policy.invalid" not in caplog.text
+    assert token not in caplog.text and "provider details" not in caplog.text
+    login(client, "commissioner")
+    status = client.get("/api/ops/account-email")
+    assert status.status_code == 200 and status.json()["failed"] == 1
+    login(client, "citizen")
+    assert client.get("/api/ops/account-email").status_code == 403
+
+
+def test_outbox_skips_expired_reset_codes(isolated, email_configured, monkeypatch):
+    client, db, _ = isolated
+    from api import account_email_outbox as outbox
+    factory = sessionmaker(bind=db.connection(), join_transaction_mode="create_savepoint", expire_on_commit=False)
+    monkeypatch.setattr(outbox, "Session", factory)
+    assert request(client, "citizen@policy.invalid").status_code == 200
+    row = db.scalar(select(AccountEmailOutbox).where(AccountEmailOutbox.status == "pending"))
+    token_row = db.get(AccountToken, row.token_digest)
+    token_row.expires_at = utcnow() - timedelta(seconds=1)
+    db.flush()
+    deliveries = []
+    monkeypatch.setattr(account_email, "deliver", lambda *args, **kwargs: deliveries.append(args))
+    outbox.process_outbox_batch()
+    db.refresh(row)
+    assert row.status == "cancelled" and row.encrypted_token is None
+    assert row.last_failure_code == "expired_or_superseded"
+    assert not deliveries

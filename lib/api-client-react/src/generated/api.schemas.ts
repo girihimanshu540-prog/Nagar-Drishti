@@ -59,6 +59,17 @@ export interface AccountMessage {
   message: string;
 }
 
+export interface AccountEmailStatus {
+  pending: number;
+  sending: number;
+  failed: number;
+  sent: number;
+  cancelled: number;
+  /** @nullable */
+  oldest_pending_at: string | null;
+  max_attempts: number;
+}
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 

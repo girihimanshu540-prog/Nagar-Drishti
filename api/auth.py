@@ -28,11 +28,6 @@ def hash_password(password):
 def user_json(u):
     return {k: getattr(u, k) for k in ("id", "name", "email", "role", "ward_id")}
 
-def verified_for_login(user, security):
-    # Staff are provisioned by operators, never by public registration.
-    return (user.role != "citizen"
-            or (security is not None and security.email_verified))
-
 def authenticate(request: Request, db, roles=None, optional=False):
     token = request.cookies.get(COOKIE)
     header = request.headers.get("authorization", "")
@@ -44,8 +39,8 @@ def authenticate(request: Request, db, roles=None, optional=False):
         if not user or not account_enabled(user):
             raise ValueError("Unknown user")
         security = db.get(AccountSecurity, user.id)
-        if claims.get("sv", 0) != (security.session_version if security else 0) or not verified_for_login(user, security):
-            raise ValueError("Revoked or unverified session")
+        if claims.get("sv", 0) != (security.session_version if security else 0):
+            raise ValueError("Revoked session")
     except (jwt.PyJWTError, ValueError, KeyError):
         if optional:
             return None

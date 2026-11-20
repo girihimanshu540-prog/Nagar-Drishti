@@ -87,13 +87,15 @@ No schema/seed is run at startup; provision real wards and staff separately.
    monitoring, backup/restore and incident ownership. Current limiter is
    per-process; browser camera metadata is not capture attestation. Configure
    HTTPS/public access and trusted origins when the owner authorizes publishing.
-6. **Account email delivery:** verification and recovery policy/UI are implemented,
-   but the integration offer was dismissed. No provider was connected, no email was
-   sent, and live email requests fail explicitly while unconfigured. Approve a
-   provider, configure authenticated delivery plus an authorized sender and trusted
-   HTTPS web origin, then verify real inbox delivery and both web/native flows.
-   Background delivery currently has no durable retry queue; provider failures
-   are logged without personal data. Establish delivery monitoring and retries.
+6. **Account email delivery:** citizen signup and sign-in no longer require email
+   verification; the submitted email address is not proof of identity. No provider
+   is connected, no email was sent, and password-reset requests fail explicitly while
+   delivery is unconfigured. The durable reset queue encrypts tokens, retries at most
+   five times and exposes aggregate status only to commissioners. Approve a provider,
+   configure authenticated delivery plus an authorized sender, stable encryption key
+   and trusted HTTPS web origin, then verify real inbox delivery and both web/native
+   recovery flows. This does not resolve the operator/privacy-contact/retention blocker
+   in item 1.
 
 ## Verification boundaries
 

@@ -41,8 +41,8 @@ Citizen reporting and human-reviewed repair tracking. Public-launch mode has no 
 - Detection mode is hard-disabled in live routes and settings. Do not restore AI claims or model calls without a new explicit request.
 - Public evidence photos are private: preserve ticket-scoped authorization and native bearer image headers.
 - Legacy sample logins and sessions are always blocked, with no development override. Historical sample records remain labeled and excluded from live metrics.
-- Citizen sign-in requires email ownership; verification/reset completion revokes cookie and native bearer sessions. Staff roles remain operator-owned.
-- Email delivery is disabled until an operator approves/configures a provider. Never log tokens or pretend an email was sent.
+- Citizen signup activates immediately; email addresses are not verified or identity proof. Public registration can only create citizen roles; staff roles remain operator-owned.
+- Password reset revokes cookie and native bearer sessions. Email delivery remains disabled until an operator approves/configures a provider; queued reset tokens are encrypted and logs never include tokens or recipient addresses.
 - The live capture UI excludes gallery pickers; metadata is not cryptographic capture attestation.
 - Never run schema creation or seed at application startup or in production build hooks.
 - See `README.md` for setup, demo credentials, verification limitations and acceptance evidence.

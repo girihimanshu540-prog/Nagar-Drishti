@@ -45,9 +45,10 @@ is unchanged.
 
 ## Flows
 
-- **Citizen:** sign in, view own accepted/rejected captures and linked tickets,
+- **Citizen:** create an active citizen account or sign in, view own accepted/rejected captures and linked tickets,
   capture a new live hazard, preview/retake, submit, and view the server result.
-  Existing web registration can create citizen accounts.
+  Public signup is available in the mobile app and web app; it creates citizen accounts
+  only and signs in immediately. Email is not verified as part of signup.
 - **Contractor:** sign in, view own assigned tickets by active/closed/all, inspect
   before/after evidence and event history, open map directions, and submit repair
   evidence only for their own non-demo ASSIGNED/REOPENED tickets.
@@ -60,6 +61,8 @@ is unchanged.
 - Login uses the existing `/api/auth/login`; protected requests send the returned
   bearer JWT. Native sessions are stored in Expo SecureStore and scoped to the
   configured API origin, then checked with `/api/me` on restoration.
+- Account registration uses the shared `/api/auth/register` endpoint, then signs in
+  through `/api/auth/login`. Staff roles are never available from public signup.
 - Browser-preview sessions are memory-only. No JWT is written to localStorage.
 - Logout clears this client's token and private query cache. The existing API's
   JWTs are stateless: clearing this device does not revoke copies elsewhere.
@@ -117,8 +120,9 @@ native/default-browser transport behavior. They are not physical camera tests.
 Observed during this addition:
 
 - Workspace TypeScript checks passed; the final mobile-specific check passed.
-- All 10 client policy/transport tests passed.
-- All 24 backend policy/API tests passed, including separate bearer-only and
+- All 14 client policy/transport/signup-flow tests passed.
+- All 62 backend policy/API tests passed, including citizen signup/sign-in,
+  role restrictions, password-reset queue retries and session revocation, plus separate bearer-only and
   cookie-authenticated sessions. New reports reach web list/detail/public reads,
   and a wrong-location repair remains assigned with its rejection audit event
   visible to web reads, each in under 15 seconds. These isolated tests use

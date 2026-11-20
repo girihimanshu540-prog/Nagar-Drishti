@@ -1,7 +1,7 @@
 """PostgreSQL entities. Schema creation is an explicit development seed step."""
 import os
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, String, Float, Integer, DateTime, ForeignKey, JSON, Boolean
+from sqlalchemy import create_engine, String, Float, Integer, DateTime, ForeignKey, JSON, Boolean, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 def utcnow():
@@ -44,6 +44,21 @@ class AccountToken(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     purpose: Mapped[str] = mapped_column(String(20))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+class AccountEmailOutbox(Base):
+    __tablename__ = "account_email_outbox"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(20))
+    token_digest: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    encrypted_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class AuthThrottle(Base):
     __tablename__ = "auth_throttles"

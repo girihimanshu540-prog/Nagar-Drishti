@@ -9,20 +9,45 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 from urllib.parse import urlsplit
+from cryptography.fernet import Fernet, InvalidToken
 from .auth import fail
 
 log = logging.getLogger("nagardrishti.email")
+
+class DeliveryFailure(Exception):
+    """A provider failure without exposing the provider's response."""
+
+def _cipher():
+    key = os.environ.get("ACCOUNT_EMAIL_ENCRYPTION_KEY", "")
+    try:
+        return Fernet(key.encode())
+    except (ValueError, TypeError):
+        raise RuntimeError("Account email encryption is unavailable.") from None
+
+def encrypt_token(token: str) -> str:
+    return _cipher().encrypt(token.encode()).decode()
+
+def decrypt_token(value: str) -> str:
+    try:
+        return _cipher().decrypt(value.encode()).decode()
+    except (InvalidToken, UnicodeDecodeError, ValueError):
+        raise DeliveryFailure("The queued account token cannot be decrypted.") from None
 
 
 def delivery_config():
     origin = os.getenv("ACCOUNT_PUBLIC_ORIGIN", "").rstrip("/")
     parsed = urlsplit(origin)
-    required = ("ACCOUNT_SMTP_HOST", "ACCOUNT_SMTP_USERNAME", "ACCOUNT_SMTP_PASSWORD", "ACCOUNT_EMAIL_FROM")
+    required = ("ACCOUNT_SMTP_HOST", "ACCOUNT_SMTP_USERNAME", "ACCOUNT_SMTP_PASSWORD",
+                "ACCOUNT_EMAIL_FROM", "ACCOUNT_EMAIL_ENCRYPTION_KEY")
     if (os.getenv("ACCOUNT_EMAIL_APPROVED") != "true"
             or not all(os.getenv(k) for k in required)
             or parsed.scheme != "https" or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment
             or parsed.path not in ("", "/")):
+        fail(503, "EMAIL_UNAVAILABLE", "Account email is not configured. Contact the service operator; no email was sent.")
+    try:
+        _cipher()
+    except RuntimeError:
         fail(503, "EMAIL_UNAVAILABLE", "Account email is not configured. Contact the service operator; no email was sent.")
     return {
         "origin": origin, "host": os.environ["ACCOUNT_SMTP_HOST"],
@@ -37,8 +62,10 @@ def deliver(settings, recipient, purpose, token):
     Never log exception text: a provider could echo the recipient or credentials.
     Tokens expire even when delivery fails, and a subsequent request replaces them.
     """
-    label = "Verify your email" if purpose == "verify" else "Reset your password"
-    link = f'{settings["origin"]}/login#{purpose}={token}'
+    if purpose != "reset":
+        raise DeliveryFailure("Unsupported account email purpose.")
+    label = "Reset your password"
+    link = f'{settings["origin"]}/login#reset={token}'
     msg = EmailMessage()
     msg["Subject"] = f"NagarDrishti — {label}"
     msg["From"] = settings["sender"]
@@ -59,4 +86,4 @@ def deliver(settings, recipient, purpose, token):
             smtp.login(settings["username"], settings["password"])
             smtp.send_message(msg)
     except Exception:
-        log.error("Account email delivery failed; operator attention required.")
+        raise DeliveryFailure("The account email provider could not complete delivery.") from None

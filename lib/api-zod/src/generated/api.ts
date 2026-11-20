@@ -52,40 +52,6 @@ export const RegisterResponse = zod.object({
 })
 
 
-export const requestVerificationBodyEmailMin = 3;
-export const requestVerificationBodyEmailMax = 200;
-
-
-
-export const RequestVerificationBody = zod.object({
-  "email": zod.string().min(requestVerificationBodyEmailMin).max(requestVerificationBodyEmailMax)
-})
-
-export const RequestVerificationResponse = zod.object({
-  "message": zod.string()
-})
-
-
-export const confirmVerificationBodyTokenMin = 43;
-export const confirmVerificationBodyTokenMax = 43;
-
-
-export const confirmVerificationBodyTokenRegExp = new RegExp('^[A-Za-z0-9_-]{43}$');
-export const confirmVerificationBodyPasswordMin = 10;
-export const confirmVerificationBodyPasswordMax = 72;
-
-
-
-export const ConfirmVerificationBody = zod.object({
-  "token": zod.string().min(confirmVerificationBodyTokenMin).max(confirmVerificationBodyTokenMax).regex(confirmVerificationBodyTokenRegExp),
-  "password": zod.string().min(confirmVerificationBodyPasswordMin).max(confirmVerificationBodyPasswordMax)
-})
-
-export const ConfirmVerificationResponse = zod.object({
-  "message": zod.string()
-})
-
-
 export const requestPasswordResetBodyEmailMin = 3;
 export const requestPasswordResetBodyEmailMax = 200;
 
@@ -117,6 +83,17 @@ export const ConfirmPasswordResetBody = zod.object({
 
 export const ConfirmPasswordResetResponse = zod.object({
   "message": zod.string()
+})
+
+
+export const GetAccountEmailStatusResponse = zod.object({
+  "pending": zod.number().int(),
+  "sending": zod.number().int(),
+  "failed": zod.number().int(),
+  "sent": zod.number().int(),
+  "cancelled": zod.number().int(),
+  "oldest_pending_at": zod.coerce.date().nullable(),
+  "max_attempts": zod.number().int()
 })
 
 

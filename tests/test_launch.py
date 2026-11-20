@@ -5,7 +5,6 @@ These do not prove real-device camera/GPS behavior or a production deployment.
 from sqlalchemy import select, func
 from api import config
 from api.models import Ticket, Repair, Settings, User, AccountSecurity, utcnow
-from api import account_email
 from account_fixtures import TEST_PASSWORD
 import api.main as routes
 from test_api import isolated, login, report
@@ -46,17 +45,12 @@ def test_private_evidence_and_public_redaction(isolated, monkeypatch):
     assert public["reports"] == public["repairs"] == public["events"] == []
     listed = next(t for t in client.get("/api/tickets").json() if t["id"] == id)
     assert listed["before_image_url"] == "" and listed["lat"] == 17.123
-    monkeypatch.setattr(account_email, "delivery_config", lambda: {})
-    messages = []
-    monkeypatch.setattr(account_email, "deliver", lambda settings, email, purpose, token: messages.append(token))
     stranger = client.post("/api/auth/register", json={
         "name": "Launch Test Citizen", "email": "launch-private-test@example.org",
         "password": "TestPassword2026!"})
     assert stranger.status_code == 200
     assert "access_token" not in stranger.json()
-    verified = client.post("/api/auth/verification/confirm", json={"token": messages[-1], "password": TEST_PASSWORD})
-    assert verified.status_code == 200, verified.text
-    assert client.post("/api/auth/login", json={"email": "launch-private-test@example.org", "password": TEST_PASSWORD}).status_code == 200
+    assert client.post("/api/auth/login", json={"email": "launch-private-test@example.org", "password": "TestPassword2026!"}).status_code == 200
     assert client.get("/api/evidence/test-fixture").status_code == 403
     assert client.get(f"/api/tickets/{id}").status_code == 403
     assert client.get("/api/contractors/scorecard").status_code == 403

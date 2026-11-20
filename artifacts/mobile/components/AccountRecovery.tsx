@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { useConfirmPasswordReset, useConfirmVerification, useRequestPasswordReset, useRequestVerification } from '@workspace/api-client-react';
+import { useConfirmPasswordReset, useRequestPasswordReset } from '@workspace/api-client-react';
 import { Button, Notice } from '@/components/ScreenState';
 import { useColors } from '@/hooks/useColors';
 import { fonts } from '@/constants/theme';
@@ -10,7 +10,7 @@ import { errorMessage } from '@/lib/client';
 export function AccountRecovery() {
   const c = useColors();
   const auth = useAuth();
-  const [purpose, setPurpose] = useState<'verify' | 'reset' | null>(null);
+  const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
@@ -18,9 +18,7 @@ export function AccountRecovery() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const verification = useRequestVerification();
   const recovery = useRequestPasswordReset();
-  const verify = useConfirmVerification();
   const reset = useConfirmPasswordReset();
   const submit = async () => {
     if (busy) return;
@@ -28,8 +26,8 @@ export function AccountRecovery() {
     try {
       if (confirm && (!/^[A-Za-z0-9_-]{43}$/.test(token.trim()) || password.length < 10)) throw new Error('Enter your full email code and a password of 10–72 bytes.');
       const result = confirm
-        ? await (purpose === 'verify' ? verify : reset).mutateAsync({ data: { token: token.trim(), password } })
-        : await (purpose === 'verify' ? verification : recovery).mutateAsync({ data: { email: email.trim() } });
+        ? await reset.mutateAsync({ data: { token: token.trim(), password } })
+        : await recovery.mutateAsync({ data: { email: email.trim() } });
       if (confirm) {
         await auth.signOut();
         setToken(''); setPassword(''); setConfirm(false);
@@ -40,11 +38,11 @@ export function AccountRecovery() {
   const input = { minHeight: 54, borderWidth: 1, paddingHorizontal: 15, fontFamily: fonts.regular, fontSize: 16,
     backgroundColor: c.card, borderColor: c.input, color: c.foreground, borderRadius: c.radius };
   return <View style={{ gap: 12 }}>
-    {(['reset', 'verify'] as const).map(p => <Button key={p} title={p === 'reset' ? 'Reset your password' : 'Verify your email'} secondary
-      testID={`recovery-open-${p}`} disabled={busy} onPress={() => { setPurpose(p); setConfirm(false); setMessage(''); setError(''); setToken(''); setPassword(''); }} />)}
-    {purpose ? <View style={{ gap: 12 }}>
-      <Text style={{ color: c.foreground, fontFamily: fonts.semibold, fontSize: 18 }}>{purpose === 'verify' ? 'Verify your email' : 'Reset your password'}</Text>
-      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 22 }}>Request an email and copy its code here. Codes expire after 30 minutes. Choose a password of 10–72 bytes. Completing this signs out all existing sessions.</Text>
+    <Button title="Forgot password?" secondary testID="recovery-open-reset" disabled={busy}
+      onPress={() => { setOpen(true); setConfirm(false); setMessage(''); setError(''); setToken(''); setPassword(''); }} />
+    {open ? <View style={{ gap: 12 }}>
+      <Text style={{ color: c.foreground, fontFamily: fonts.semibold, fontSize: 18 }}>Reset your password</Text>
+      <Text style={{ color: c.mutedForeground, fontFamily: fonts.regular, lineHeight: 22 }}>Request a password-reset email, then open its link or enter its reset code. Codes expire after 30 minutes. Choose a new password (10–72 bytes); this signs out existing sessions.</Text>
       {confirm ? <>
         <TextInput testID="recovery-token" accessibilityLabel="Email code" style={input} value={token} onChangeText={setToken}
           autoCapitalize="none" autoCorrect={false} autoComplete="off" maxLength={43} editable={!busy} placeholder="Email code" placeholderTextColor={c.mutedForeground} />
@@ -54,11 +52,11 @@ export function AccountRecovery() {
         autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy} placeholder="Email address" placeholderTextColor={c.mutedForeground} />}
       {message ? <Notice>{message}</Notice> : null}
       {error ? <Notice danger>{error}</Notice> : null}
-      <Button title={confirm ? 'Set password and verify' : 'Request email'} testID="recovery-submit" busy={busy} onPress={() => void submit()} />
+      <Button title={confirm ? 'Set new password' : 'Request reset email'} testID="recovery-submit" busy={busy} onPress={() => void submit()} />
       <Button title={confirm ? 'Request a new email' : 'I have an email code'} testID="recovery-toggle-code" secondary disabled={busy}
         onPress={() => { setConfirm(!confirm); setMessage(''); setError(''); setToken(''); setPassword(''); }} />
       <Button title="Close" testID="recovery-close" secondary disabled={busy}
-        onPress={() => { setPurpose(null); setPassword(''); setToken(''); }} />
+        onPress={() => { setOpen(false); setPassword(''); setToken(''); }} />
     </View> : null}
   </View>;
 }
